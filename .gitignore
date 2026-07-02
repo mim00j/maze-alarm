@@ -1,0 +1,5 @@
+# 로컬 미리보기/에디터 도구
+.claude/
+.vscode/
+.DS_Store
+Thumbs.db

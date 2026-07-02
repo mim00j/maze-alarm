@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#F2F3F5" />
+<title>미로 알람</title>
+<style>
+  :root{
+    --bg:#F2F3F5; --surface:#FFFFFF; --surface-2:#F6F7F9;
+    --ink:#1E1F24; --muted:#8A8F98; --line:#E6E7EB;
+    --accent:#4F46E5; --accent-soft:#EEF0FF;
+    --exit:#10B981; --exit-soft:#E7F8F1; --danger:#EF4444;
+    --wall:#1E1F24;
+    --radius:16px; --shadow:0 6px 24px rgba(20,22,40,.08);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overscroll-behavior:none;}
+
+  /* ===== 홈 ===== */
+  .home{max-width:460px;margin:0 auto;min-height:100%;padding:28px 20px 40px;display:flex;flex-direction:column;gap:18px;}
+  .top{display:flex;align-items:flex-end;justify-content:space-between;padding:6px 4px 2px;}
+  .top h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.3px;}
+  .clock{text-align:right;}
+  .clock .t{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;}
+  .clock .d{font-size:12px;color:var(--muted);margin-top:3px;}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;}
+  .card-title{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.2px;}
+
+  /* 세그먼트(난이도) */
+  .segmented{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px;}
+  .segmented label{flex:1;position:relative;}
+  .segmented input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+  .segmented span{display:block;text-align:center;padding:9px 0;font-size:14px;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;}
+  .segmented input:checked+span{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:0 1px 3px rgba(20,22,40,.1);}
+
+  /* 요일 알람 */
+  .alarm-row{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--line);}
+  .alarm-row:first-child{border-top:none;}
+  .day{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:600;font-size:14px;background:var(--surface-2);color:var(--muted);flex:none;}
+  .alarm-row.on .day{background:var(--accent-soft);color:var(--accent);}
+  .alarm-row input[type=time]{flex:1;font-family:inherit;font-size:18px;font-weight:500;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums;}
+  .alarm-row.off input[type=time]{color:var(--muted);}
+  input[type=time]:focus{outline:2px solid var(--accent-soft);}
+
+  /* 스위치 */
+  .switch{flex:none;}
+  .switch input{display:none;}
+  .switch .track{display:block;width:46px;height:27px;background:var(--line);border-radius:999px;position:relative;transition:.2s;cursor:pointer;}
+  .switch .thumb{position:absolute;top:3px;left:3px;width:21px;height:21px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:.2s;}
+  .switch input:checked+.track{background:var(--accent);}
+  .switch input:checked+.track .thumb{transform:translateX(19px);}
+
+  .test-row{display:flex;gap:10px;}
+  .btn{flex:1;font-family:inherit;font-size:15px;font-weight:600;border-radius:13px;padding:13px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:.12s;}
+  .btn:active{transform:scale(.98);}
+  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn-primary:hover{filter:brightness(1.04);}
+  .hint{margin:2px 0 0;text-align:center;font-size:12.5px;color:var(--muted);}
+  .note{margin:0;text-align:center;font-size:13px;color:var(--accent);font-weight:600;min-height:18px;}
+
+  /* ===== 게임(미로) ===== */
+  .game{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;z-index:20;}
+  .game[hidden]{display:none;}
+  .game-head{width:100%;text-align:center;padding:22px 20px 8px;}
+  .game-head .ttl{font-size:13px;letter-spacing:3px;color:var(--accent);font-weight:700;}
+  .game-head .when{margin-top:5px;font-size:26px;font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
+  .game-head .sub{margin-top:6px;color:var(--muted);font-size:14px;}
+
+  .maze-area{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 16px 8px;min-height:0;width:100%;}
+  .stage{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);touch-action:none;overflow:hidden;}
+  .stage.shake{animation:shake .25s;}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  #maze{display:block;cursor:grab;}
+  #maze.grabbing{cursor:grabbing;}
+
+  .game-foot{padding:12px 20px 26px;min-height:20px;}
+  .btn-ghost{font-family:inherit;font-size:14px;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:11px;padding:9px 20px;cursor:pointer;}
+  .btn-ghost:hover{color:var(--ink);}
+
+  /* 성공 */
+  .solved{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:fade .35s;}
+  .solved[hidden]{display:none;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .check{width:74px;height:74px;border-radius:50%;background:var(--exit);box-shadow:0 0 0 12px var(--exit-soft);display:grid;place-items:center;}
+  .check svg{stroke:#fff;}
+  .solved .h{font-size:24px;font-weight:600;}
+  .solved .s{font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums;}
+
+  @media (max-width:380px){.clock .t{font-size:22px;}}
+</style>
+</head>
+<body>
+  <!-- 홈 -->
+  <main class="home" id="home">
+    <div class="top">
+      <h1>미로 알람</h1>
+      <div class="clock"><div class="t" id="clockT">--:--</div><div class="d" id="clockD"></div></div>
+    </div>
+
+    <section class="card">
+      <p class="card-title">난이도</p>
+      <div class="segmented" id="difficulty">
+        <label><input type="radio" name="diff" value="easy"><span>쉬움 4×4</span></label>
+        <label><input type="radio" name="diff" value="normal" checked><span>보통 5×5</span></label>
+        <label><input type="radio" name="diff" value="hard"><span>어려움 7×7</span></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">요일별 알람</p>
+      <div id="alarmList"></div>
+    </section>
+
+    <button class="btn btn-primary" id="testNow">즉시 시작</button>
+    <p class="hint">캐릭터를 드래그해 출구까지 이동하세요. 벽에 닿으면 시작점으로 되돌아갑니다.</p>
+  </main>
+
+  <!-- 게임 -->
+  <div class="game" id="game" hidden>
+    <div class="game-head">
+      <div class="ttl">ALARM</div>
+      <div class="when" id="gameWhen"></div>
+      <div class="sub">미로를 탈출하면 알람이 꺼져요</div>
+    </div>
+
+    <div class="maze-area">
+      <div class="stage" id="stage"><canvas id="maze"></canvas></div>
+    </div>
+
+    <div class="solved" id="solved" hidden>
+      <div class="check"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+      <div class="h">좋은 아침이에요</div>
+      <div class="s" id="solvedT"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+
+  /* ---------- 알람음 (Web Audio) ---------- */
+  const Sound={
+    ctx:null,timer:null,playing:false,
+    ensure(){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;if(!this.ctx)this.ctx=new A();if(this.ctx.state==="suspended")this.ctx.resume();return this.ctx;},
+    beep(f,s,d){const c=this.ctx,o=c.createOscillator(),g=c.createGain();o.type="triangle";o.frequency.value=f;o.connect(g);g.connect(c.destination);const t=c.currentTime+s;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.18,t+.02);g.gain.linearRampToValueAtTime(0,t+d);o.start(t);o.stop(t+d+.02);},
+    start(){if(this.playing||!this.ensure())return;this.playing=true;const cy=()=>{if(!this.ctx)return;this.beep(880,0,.12);this.beep(880,.18,.12);this.beep(660,.42,.16);};cy();this.timer=setInterval(cy,1300);},
+    stop(){this.playing=false;if(this.timer){clearInterval(this.timer);this.timer=null;}}
+  };
+
+  /* ---------- 미로 ---------- */
+  const SIZES={easy:4,normal:5,hard:7};
+  const Maze={
+    canvas:$("maze"),ctx:$("maze").getContext("2d"),stage:$("stage"),
+    n:10,c:40,r:9,t:6,W:0,H:0,prevC:0,
+    pos:{x:0,y:0},cells:null,segs:null,rects:null,
+    dragging:false,solved:false,flash:false,onSolve:null,
+
+    build(n){
+      this.n=n;const N=n;
+      const cells=[];for(let y=0;y<N;y++){const row=[];for(let x=0;x<N;x++)row.push({N:1,E:1,S:1,W:1,v:0});cells.push(row);}
+      const dirs=[[0,-1,"N","S"],[1,0,"E","W"],[0,1,"S","N"],[-1,0,"W","E"]];
+      const st=[[0,0]];cells[0][0].v=1;
+      while(st.length){const[x,y]=st[st.length-1];const o=[];for(const[dx,dy,a,b]of dirs){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<N&&ny>=0&&ny<N&&!cells[ny][nx].v)o.push([dx,dy,a,b,nx,ny]);}if(!o.length){st.pop();continue;}const[dx,dy,a,b,nx,ny]=o[Math.floor(Math.random()*o.length)];cells[y][x][a]=0;cells[ny][nx][b]=0;cells[ny][nx].v=1;st.push([nx,ny]);}
+      this.cells=cells;this.solved=false;this.prevC=0;
+      this.layout(true);
+    },
+
+    walls(){
+      const{c,t,n,cells}=this,segs=[];
+      for(let y=0;y<n;y++)for(let x=0;x<n;x++){const cell=cells[y][x],x0=x*c,y0=y*c;
+        if(cell.N)segs.push([x0,y0,x0+c,y0]);
+        if(cell.W)segs.push([x0,y0,x0,y0+c]);
+        if(x===n-1&&cell.E)segs.push([x0+c,y0,x0+c,y0+c]);
+        if(y===n-1&&cell.S&&!(x===n-1))segs.push([x0,y0+c,x0+c,y0+c]); /* 출구 셀 하단은 열어 둠 */
+      }
+      this.segs=segs;
+      this.rects=segs.map(([x1,y1,x2,y2])=>({x:Math.min(x1,x2)-t/2,y:Math.min(y1,y2)-t/2,w:Math.abs(x2-x1)+t,h:Math.abs(y2-y1)+t}));
+    },
+
+    layout(reset){
+      const area=this.stage.parentElement,aw=area.clientWidth-32,ah=area.clientHeight-16;
+      if(aw<=0||ah<=0)return;
+      let c=Math.floor(Math.min(aw/this.n,ah/this.n));c=Math.max(30,Math.min(110,c));
+      this.c=c;this.r=c*0.22;this.t=Math.max(4,Math.round(c*0.16));
+      const W=this.n*c,H=this.n*c,dpr=window.devicePixelRatio||1;
+      this.W=W;this.H=H;
+      this.canvas.width=W*dpr;this.canvas.height=H*dpr;
+      this.canvas.style.width=W+"px";this.canvas.style.height=H+"px";
+      this.stage.style.width=W+"px";this.stage.style.height=H+"px";
+      this.ctx.setTransform(dpr,0,0,dpr,0,0);
+      this.walls();
+      if(reset||!this.prevC)this.pos={x:c*0.5,y:c*0.5};else{const k=c/this.prevC;this.pos={x:this.pos.x*k,y:this.pos.y*k};}
+      this.prevC=c;this.render();
+    },
+
+    render(){
+      const{ctx,W,H,c,n,segs,t}=this;
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);
+      /* 시작 셀 */
+      ctx.fillStyle="rgba(79,70,229,.10)";ctx.fillRect(2,2,c-4,c-4);
+      /* 출구 셀 */
+      const ex=(n-1)*c;ctx.fillStyle="rgba(16,185,129,.14)";ctx.fillRect(ex+2,ex+2,c-4,c-4);
+      ctx.fillStyle="rgba(16,185,129,.95)";ctx.beginPath();ctx.arc(ex+c/2,ex+c/2,c*0.16,0,7);ctx.fill();
+      /* 벽 */
+      ctx.strokeStyle="#1E1F24";ctx.lineWidth=t;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();
+      for(const[x1,y1,x2,y2]of segs){ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);}ctx.stroke();
+      /* 캐릭터 */
+      const p=this.pos,r=this.r;
+      ctx.fillStyle=this.flash?"#EF4444":"#4F46E5";
+      ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();
+      ctx.fillStyle="#fff";
+      ctx.beginPath();ctx.arc(p.x-r*0.32,p.y-r*0.12,r*0.18,0,7);ctx.fill();
+      ctx.beginPath();ctx.arc(p.x+r*0.32,p.y-r*0.12,r*0.18,0,7);ctx.fill();
+    },
+
+    collide(x,y){const r=this.r;for(const R of this.rects){const nx=Math.max(R.x,Math.min(x,R.x+R.w)),ny=Math.max(R.y,Math.min(y,R.y+R.h)),dx=x-nx,dy=y-ny;if(dx*dx+dy*dy<r*r)return true;}return false;},
+
+    reset(){
+      this.pos={x:this.c*0.5,y:this.c*0.5};
+      this.dragging=false;this.flash=true;
+      this.canvas.classList.remove("grabbing");
+      this.stage.classList.add("shake");
+      this.render();
+      setTimeout(()=>{this.stage.classList.remove("shake");},250);
+      setTimeout(()=>{this.flash=false;this.render();},260);
+    },
+
+    move(tx,ty){
+      const step=Math.max(1.2,this.r*0.4);let g=0;
+      while(g++<2000){
+        const dx=tx-this.pos.x,dy=ty-this.pos.y,dist=Math.hypot(dx,dy);
+        if(dist<0.5)break;
+        const s=Math.min(step,dist),nx=this.pos.x+dx/dist*s,ny=this.pos.y+dy/dist*s;
+        if(this.collide(nx,ny)){this.reset();return;} /* 벽에 닿으면 시작점으로 */
+        this.pos.x=nx;this.pos.y=ny;
+      }
+      this.render();this.check();
+    },
+
+    check(){
+      if(this.solved)return;
+      const ex=(this.n-0.5)*this.c;
+      if(Math.hypot(this.pos.x-ex,this.pos.y-ex)<this.c*0.4){this.solved=true;this.dragging=false;this.canvas.classList.remove("grabbing");if(this.onSolve)this.onSolve();}
+    },
+
+    local(e){const R=this.canvas.getBoundingClientRect();return{x:(e.clientX-R.left)*(this.W/R.width),y:(e.clientY-R.top)*(this.H/R.height)};},
+
+    bind(){
+      const cv=this.canvas;
+      cv.addEventListener("pointerdown",e=>{if(this.solved)return;const p=this.local(e);if(Math.hypot(p.x-this.pos.x,p.y-this.pos.y)<this.r*3.5){this.dragging=true;cv.classList.add("grabbing");cv.setPointerCapture(e.pointerId);e.preventDefault();}});
+      cv.addEventListener("pointermove",e=>{if(!this.dragging||this.solved)return;const p=this.local(e);this.move(p.x,p.y);e.preventDefault();});
+      const end=()=>{this.dragging=false;cv.classList.remove("grabbing");};
+      cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end);
+    }
+  };
+  Maze.bind();
+  window.addEventListener("resize",()=>{if(!$("game").hidden)Maze.layout(false);});
+
+  /* ---------- 알람 상태/예약 ---------- */
+  const KEY="mazeAlarm.v2";
+  const DAYS=[{k:"mon",l:"월"},{k:"tue",l:"화"},{k:"wed",l:"수"},{k:"thu",l:"목"},{k:"fri",l:"금"},{k:"sat",l:"토"},{k:"sun",l:"일"}];
+  const JS2KEY=["sun","mon","tue","wed","thu","fri","sat"];
+  const DEF={difficulty:"normal",alarms:{}};
+  DAYS.forEach(d=>DEF.alarms[d.k]={time:"07:00",on:false});
+
+  let S=load();
+  let ringing=false,preview=false,lastFired=null;
+
+  function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(!o)return clone(DEF);o.alarms=Object.assign({},DEF.alarms,o.alarms||{});return Object.assign({},DEF,o);}catch(e){return clone(DEF);}}
+  function clone(o){return JSON.parse(JSON.stringify(o));}
+  function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+
+  /* 홈 렌더 */
+  function renderHome(){
+    $("difficulty").querySelector(`input[value="${S.difficulty}"]`).checked=true;
+    const wrap=$("alarmList");wrap.innerHTML="";
+    DAYS.forEach(d=>{
+      const a=S.alarms[d.k];
+      const row=document.createElement("div");row.className="alarm-row "+(a.on?"on":"off");
+      row.innerHTML=`<span class="day">${d.l}</span>
+        <input type="time" value="${a.time}">
+        <label class="switch"><input type="checkbox" ${a.on?"checked":""}><span class="track"><span class="thumb"></span></span></label>`;
+      const time=row.querySelector('input[type=time]');
+      const tog=row.querySelector('input[type=checkbox]');
+      time.addEventListener("change",e=>{a.time=e.target.value||"07:00";lastFired=null;save();Sound.ensure();});
+      tog.addEventListener("change",e=>{a.on=e.target.checked;row.className="alarm-row "+(a.on?"on":"off");lastFired=null;save();Sound.ensure();});
+      wrap.appendChild(row);
+    });
+  }
+
+  /* 시계 + 알람 체크 */
+  function tick(){
+    const now=new Date();
+    const hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0");
+    $("clockT").textContent=`${hh}:${mm}`;
+    $("clockD").textContent=new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long"}).format(now);
+    if(!ringing){
+      const a=S.alarms[JS2KEY[now.getDay()]];
+      const cur=`${hh}:${mm}`,key=now.toDateString()+cur;
+      if(a&&a.on&&a.time===cur&&now.getSeconds()===0&&lastFired!==key){lastFired=key;fire(false);}
+    }
+  }
+
+  /* ---------- 발동 / 타이머 ---------- */
+  function fire(isPreview){
+    if(ringing)return;ringing=true;preview=isPreview;
+    const now=new Date();
+    const wd=new Intl.DateTimeFormat("ko-KR",{weekday:"long"}).format(now);
+    const h=now.getHours(),m=String(now.getMinutes()).padStart(2,"0");
+    const ap=h<12?"오전":"오후",h12=(h%12)||12;
+    $("gameWhen").textContent=`${wd} ${ap} ${h12}:${m}`;
+    $("game").hidden=false;$("solved").hidden=true;
+    requestAnimationFrame(()=>{Maze.build(SIZES[S.difficulty]||7);Sound.start();});
+  }
+
+  Maze.onSolve=function(){
+    Sound.stop();
+    const now=new Date();
+    $("solvedT").textContent=`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+    setTimeout(()=>{$("solved").hidden=false;},400);
+    setTimeout(close,2400);
+  };
+  function close(){Sound.stop();ringing=false;$("game").hidden=true;$("solved").hidden=true;}
+
+  /* ---------- 이벤트 ---------- */
+  $("difficulty").addEventListener("change",e=>{if(e.target.name==="diff"){S.difficulty=e.target.value;save();}Sound.ensure();});
+  $("testNow").addEventListener("click",()=>{Sound.ensure();fire(true);});
+  document.addEventListener("pointerdown",()=>Sound.ensure(),{once:true});
+
+  /* ---------- 시작 ---------- */
+  renderHome();tick();setInterval(tick,1000);
+})();
+</script>
+</body>
+</html>

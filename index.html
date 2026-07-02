@@ -2,340 +2,712 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<meta name="theme-color" content="#F2F3F5" />
-<title>미로 알람</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SeaOasis · 바다를 탐험하는 다이빙 로봇</title>
 <style>
   :root{
-    --bg:#F2F3F5; --surface:#FFFFFF; --surface-2:#F6F7F9;
-    --ink:#1E1F24; --muted:#8A8F98; --line:#E6E7EB;
-    --accent:#4F46E5; --accent-soft:#EEF0FF;
-    --exit:#10B981; --exit-soft:#E7F8F1; --danger:#EF4444;
-    --wall:#1E1F24;
-    --radius:16px; --shadow:0 6px 24px rgba(20,22,40,.08);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",Roboto,sans-serif;
+    --deep:#02121f;
+    --deep2:#04263c;
+    --teal:#1fd6c4;
+    --teal-d:#0fa896;
+    --cyan:#3fd0ff;
+    --ink:#eaf6ff;
+    --muted:#9fc2d6;
+    --card:rgba(9,32,48,.72);
+    --line:rgba(120,200,230,.16);
+    --danger:#ff5a6e;
+    --warn:#ffce4d;
+    --ok:#38e59a;
+    --sb:#061d2c;
   }
-  *{box-sizing:border-box;}
-  html,body{margin:0;height:100%;}
-  body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overscroll-behavior:none;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Pretendard","Segoe UI",-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+    color:var(--ink);
+    background:var(--deep);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  button{font-family:inherit;cursor:pointer}
+  .hide{display:none !important}
 
-  /* ===== 홈 ===== */
-  .home{max-width:460px;margin:0 auto;min-height:100%;padding:28px 20px 40px;display:flex;flex-direction:column;gap:18px;}
-  .top{display:flex;align-items:flex-end;justify-content:space-between;padding:6px 4px 2px;}
-  .top h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.3px;}
-  .clock{text-align:right;}
-  .clock .t{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;}
-  .clock .d{font-size:12px;color:var(--muted);margin-top:3px;}
+  /* ============ HERO / LANDING ============ */
+  #landing{position:relative;min-height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  /* optional real video, sized to fullscreen cover */
+  .bgvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0;transition:opacity 1s}
+  .bgvid.ready{opacity:1}
+  /* when a real video is playing, hide the CSS/SVG fallback scene so the footage shows through */
+  .has-video .ocean,.has-video .caustics,.has-video .sea,
+  .has-video .shark,.has-video .rock{opacity:0 !important;transition:opacity .8s}
+  /* deep underwater gradient: bright cyan top -> deep navy bottom */
+  .ocean{position:absolute;inset:0;z-index:0;
+    background:radial-gradient(150% 130% at 50% -25%,
+      #34b3df 0%, #1a86bd 20%, #0d5f92 40%, #084468 58%, #052f4b 74%, #021b31 88%, #010f1f 100%);
+  }
+  .ocean::after{ /* god rays */
+    content:"";position:absolute;inset:0;z-index:1;mix-blend-mode:screen;opacity:.6;
+    background:
+      linear-gradient(100deg, transparent 28%, rgba(160,240,255,.20) 39%, transparent 47%),
+      linear-gradient(82deg, transparent 50%, rgba(160,240,255,.13) 59%, transparent 66%),
+      linear-gradient(120deg, transparent 68%, rgba(160,240,255,.11) 75%, transparent 82%);
+    animation:rays 14s ease-in-out infinite}
+  @keyframes rays{0%,100%{opacity:.45;transform:translateX(-2%)}50%{opacity:.72;transform:translateX(2%)}}
+  .caustics{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen;opacity:.28;
+    background:
+      radial-gradient(60% 40% at 28% 8%, rgba(190,248,255,.55), transparent 60%),
+      radial-gradient(55% 45% at 74% 4%, rgba(130,225,255,.45), transparent 60%);
+    animation:caustic 9s ease-in-out infinite alternate}
+  @keyframes caustic{from{transform:translateY(0) scale(1)}to{transform:translateY(22px) scale(1.06)}}
+  /* dark rock / cave silhouettes framing the scene */
+  .rock{position:absolute;z-index:2;bottom:0;right:0;height:90%;
+    filter:drop-shadow(-10px 0 40px rgba(0,8,16,.55))}
+  .rock.left{left:0;right:auto;height:42%;transform:scaleX(-1);opacity:.85}
+  /* fish layer */
+  .sea{position:absolute;inset:0;z-index:2;overflow:hidden;pointer-events:none}
+  .fish{position:absolute;left:0;will-change:transform}
+  .fish.rev svg{transform:scaleX(-1)}
+  @keyframes swimR{
+    0%{transform:translate(-160px,0)}
+    50%{transform:translate(50vw,-16px)}
+    100%{transform:translate(calc(100vw + 200px),0)}}
+  @keyframes swimL{
+    0%{transform:translate(calc(100vw + 200px),0)}
+    50%{transform:translate(50vw,16px)}
+    100%{transform:translate(-160px,0)}}
+  .shark{position:absolute;top:24%;z-index:2;width:250px;opacity:.4;
+    filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));animation:swimR 34s linear infinite}
+  .scrim{position:absolute;inset:0;z-index:3;pointer-events:none;
+    background:
+      linear-gradient(180deg, rgba(2,12,22,.55) 0%, rgba(2,12,22,.12) 12%, transparent 20%),
+      linear-gradient(90deg, rgba(2,12,22,.5) 0%, rgba(2,12,22,.15) 46%, transparent 72%),
+      linear-gradient(0deg, rgba(2,12,22,.7), transparent 42%)}
+  .bubbles{position:absolute;inset:0;z-index:3;overflow:hidden;pointer-events:none}
+  .bubbles span{position:absolute;bottom:-40px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.6), rgba(150,230,255,.14));
+    animation:rise linear infinite}
+  @keyframes rise{to{transform:translateY(-110vh) translateX(30px);opacity:0}}
+  /* swimming robot silhouette */
+  .robot{position:absolute;left:6%;bottom:23%;z-index:3;width:150px;opacity:.95;
+    filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));animation:swim 14s ease-in-out infinite}
+  @keyframes swim{0%,100%{transform:translate(0,0) rotate(-2deg)}50%{transform:translate(40px,-26px) rotate(3deg)}}
+  /* SeaOasis robot: cruises forward from top-right to bottom-left (heading fixed, no spin) */
+  /* true 3D product model: cruises from top-right corner to bottom-left corner */
+  .manta{position:absolute;top:0;left:0;z-index:2;
+    width:clamp(340px,44vw,700px);height:clamp(240px,31vw,500px);
+    animation:cornerCruise 22s linear infinite;
+    filter:drop-shadow(0 30px 52px rgba(2,18,30,.5))}
+  @keyframes cornerCruise{
+    0%  {transform:translate(96vw,-36vh) scale(.42); opacity:0}
+    10% {opacity:1}
+    90% {opacity:1}
+    100%{transform:translate(-58vw,122vh) scale(1.4); opacity:0}}
+  .manta-mv{width:100%;height:100%;background:transparent;transform:rotate(7deg);
+    filter:brightness(.9) saturate(1.08) contrast(1.03) blur(.35px);
+    --poster-color:transparent;--progress-bar-color:transparent}
+  /* propulsion bubble trail from the rear = "operating in water" cue */
+  .manta-bubbles{position:absolute;right:26%;top:46%;width:0;height:0;pointer-events:none;z-index:3}
+  .manta-bubbles span{position:absolute;bottom:0;border-radius:50%;
+    background:radial-gradient(circle at 35% 32%, rgba(255,255,255,.8), rgba(170,225,255,.14));
+    animation:btrail linear infinite}
+  @keyframes btrail{
+    0%{transform:translate(0,0) scale(.5);opacity:0}
+    18%{opacity:.75}
+    100%{transform:translate(40px,-80px) scale(1.1);opacity:0}}
+  .manta-inner img{display:block;width:100%;
+    /* underwater grade: cooler, a touch dimmer, slight water haze */
+    filter:brightness(.82) contrast(.92) saturate(.8) blur(.4px)}
+  /* blue ambient tint, clipped to the product silhouette */
+  .manta-tint{position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,#3f92c2 0%,#12628f 55%,#083049 100%);
+    mix-blend-mode:multiply;opacity:.5;
+    -webkit-mask:url('assets/product-cut.png') center/contain no-repeat;
+            mask:url('assets/product-cut.png') center/contain no-repeat;
+    -webkit-mask-mode:alpha;mask-mode:alpha}
+  /* subtle top light on the product, also clipped to its shape */
+  .manta-light{position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(160deg,rgba(190,235,255,.55) 0%,rgba(190,235,255,0) 42%);
+    mix-blend-mode:screen;opacity:.6;
+    -webkit-mask:url('assets/product-cut.png') center/contain no-repeat;
+            mask:url('assets/product-cut.png') center/contain no-repeat;
+    -webkit-mask-mode:alpha;mask-mode:alpha}
+  /* whole unit travels far(small) -> near(large) for 3D depth; shape never deforms */
+  @keyframes mantaCruise{
+    0%  {transform:translate(98vw,-30vh) scale(.34); opacity:0}
+    12% {opacity:.96}
+    88% {opacity:.96}
+    100%{transform:translate(-52vw,120vh) scale(1.68); opacity:0}}
 
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;}
-  .card-title{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.2px;}
+  header.nav{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;
+    padding:22px 40px}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.5px}
+  .brand .mark{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--teal),var(--cyan));color:#022;font-size:20px;
+    box-shadow:0 6px 20px rgba(31,214,196,.45)}
+  .brand b{font-size:19px}
+  .brand span{color:var(--teal);font-size:11px;letter-spacing:3px;display:block;margin-top:-2px}
+  nav.menu{display:flex;gap:34px;font-weight:600;font-size:15px;color:#dcefff}
+  .navitem{position:relative}
+  /* transparent bridge so hover survives the gap between label and dropdown */
+  .navitem::before{content:"";position:absolute;left:-14px;right:-14px;top:100%;height:20px}
+  .navitem>a{position:relative;opacity:.9;transition:.2s;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .navitem>a .car{font-size:10px;opacity:.7;transition:.25s}
+  .navitem:hover>a{opacity:1;color:var(--teal)}
+  .navitem:hover>a .car{transform:rotate(180deg);color:var(--teal)}
+  .navitem>a::after{content:"";position:absolute;left:0;bottom:-6px;height:2px;width:0;
+    background:var(--teal);transition:.25s}
+  .navitem:hover>a::after{width:100%}
+  .dropdown{position:absolute;top:calc(100% + 16px);left:50%;transform:translateX(-50%) translateY(8px);
+    min-width:172px;background:rgba(6,24,38,.97);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:14px;padding:8px;
+    opacity:0;visibility:hidden;pointer-events:none;transition:.18s ease;z-index:30;
+    box-shadow:0 26px 70px rgba(0,0,0,.55)}
+  .navitem:hover .dropdown{opacity:1;visibility:visible;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  .dropdown::before{content:"";position:absolute;top:-7px;left:50%;transform:translateX(-50%) rotate(45deg);
+    width:14px;height:14px;background:rgba(6,24,38,.97);border-left:1px solid var(--line);border-top:1px solid var(--line)}
+  .dropdown.right{left:auto;right:0;transform:translateX(0) translateY(8px)}
+  .navitem:hover .dropdown.right{transform:translateX(0) translateY(0)}
+  .dropdown.right::before{left:auto;right:26px;transform:rotate(45deg)}
+  .dd-list{list-style:none}
+  .dd-list li{font-size:14px;color:var(--ink);font-weight:600;padding:9px 12px;border-radius:9px;
+    white-space:nowrap;cursor:pointer;transition:.15s}
+  .dd-list li:hover{background:rgba(31,214,196,.14);color:var(--teal)}
+  .nav-right{display:flex;align-items:center;gap:16px}
+  .btn-login{padding:12px 30px;border-radius:4px;border:1px solid rgba(255,255,255,.7);
+    background:transparent;color:#fff;font-weight:600;letter-spacing:1px;font-size:14px;transition:.2s}
+  .btn-login:hover{background:#fff;color:#022;border-color:#fff}
 
-  /* 세그먼트(난이도) */
-  .segmented{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px;}
-  .segmented label{flex:1;position:relative;}
-  .segmented input{position:absolute;inset:0;opacity:0;cursor:pointer;}
-  .segmented span{display:block;text-align:center;padding:9px 0;font-size:14px;color:var(--muted);border-radius:9px;cursor:pointer;transition:.15s;}
-  .segmented input:checked+span{background:var(--surface);color:var(--accent);font-weight:600;box-shadow:0 1px 3px rgba(20,22,40,.1);}
+  /* minimal hero: only the big title, anchored top-right */
+  .hero{position:absolute;top:23%;right:6%;z-index:4;text-align:right;max-width:80%}
+  .hero .kicker{color:#eaf6ff;font-weight:400;letter-spacing:10px;font-size:clamp(15px,1.6vw,24px);
+    text-transform:uppercase;opacity:.92;margin-bottom:4px;text-shadow:0 2px 20px rgba(0,0,0,.5)}
+  .hero h1{font-size:clamp(56px,11vw,168px);line-height:.9;font-weight:800;letter-spacing:3px;
+    text-transform:uppercase;color:#fff;text-shadow:0 8px 44px rgba(0,0,0,.5)}
+  .scroll-hint{position:absolute;left:40px;bottom:28px;z-index:4;color:var(--muted);
+    font-size:13px;letter-spacing:1px;display:flex;align-items:center;gap:12px}
+  .scroll-hint::before{content:"";width:38px;height:1px;background:var(--teal)}
 
-  /* 요일 알람 */
-  .alarm-row{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--line);}
-  .alarm-row:first-child{border-top:none;}
-  .day{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:600;font-size:14px;background:var(--surface-2);color:var(--muted);flex:none;}
-  .alarm-row.on .day{background:var(--accent-soft);color:var(--accent);}
-  .alarm-row input[type=time]{flex:1;font-family:inherit;font-size:18px;font-weight:500;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums;}
-  .alarm-row.off input[type=time]{color:var(--muted);}
-  input[type=time]:focus{outline:2px solid var(--accent-soft);}
+  /* ============ LOGIN MODAL ============ */
+  .overlay{position:fixed;inset:0;z-index:50;background:rgba(2,10,18,.78);backdrop-filter:blur(6px);
+    display:grid;place-items:center;padding:20px}
+  .login-card{width:min(400px,100%);background:linear-gradient(180deg,#08283c,#052033);
+    border:1px solid var(--line);border-radius:22px;padding:34px 30px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);animation:pop .3s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}}
+  .login-card .lg-brand{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:6px}
+  .login-card h2{text-align:center;font-size:22px;margin-top:8px}
+  .login-card .sub{text-align:center;color:var(--muted);font-size:13px;margin:6px 0 24px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px;font-weight:600}
+  .field input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.05);color:var(--ink);font-size:15px;outline:none}
+  .field input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,214,196,.18)}
+  .login-card .go{width:100%;margin-top:8px;padding:14px;border:none;border-radius:12px;font-weight:800;
+    font-size:16px;background:linear-gradient(135deg,var(--teal),var(--cyan));color:#022}
+  .login-card .demo{text-align:center;margin-top:16px;font-size:12px;color:var(--muted)}
+  .login-card .demo b{color:var(--teal)}
+  .x-close{position:absolute;top:18px;right:22px;font-size:26px;color:#9fc;background:none;border:none}
 
-  /* 스위치 */
-  .switch{flex:none;}
-  .switch input{display:none;}
-  .switch .track{display:block;width:46px;height:27px;background:var(--line);border-radius:999px;position:relative;transition:.2s;cursor:pointer;}
-  .switch .thumb{position:absolute;top:3px;left:3px;width:21px;height:21px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:.2s;}
-  .switch input:checked+.track{background:var(--accent);}
-  .switch input:checked+.track .thumb{transform:translateX(19px);}
+  /* ============ APP ============ */
+  #app{display:grid;grid-template-columns:250px 1fr;min-height:100vh;background:var(--deep)}
+  aside{background:var(--sb);border-right:1px solid var(--line);padding:22px 16px;position:sticky;top:0;height:100vh;
+    display:flex;flex-direction:column}
+  aside .brand{padding:6px 8px 22px}
+  .side-menu{display:flex;flex-direction:column;gap:4px;flex:1}
+  .side-menu button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    padding:13px 14px;border-radius:12px;border:none;background:none;color:var(--muted);
+    font-size:15px;font-weight:600;transition:.15s}
+  .side-menu button .ic{width:22px;text-align:center;font-size:17px}
+  .side-menu button:hover{background:rgba(255,255,255,.04);color:var(--ink)}
+  .side-menu button.active{background:linear-gradient(135deg,rgba(31,214,196,.22),rgba(63,208,255,.12));
+    color:var(--ink);box-shadow:inset 0 0 0 1px rgba(31,214,196,.35)}
+  .side-menu button.active .ic{color:var(--teal)}
+  .side-foot{border-top:1px solid var(--line);padding-top:14px;font-size:12px;color:var(--muted)}
+  .side-foot .who{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .side-foot .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--teal),var(--cyan));
+    display:grid;place-items:center;color:#022;font-weight:800}
+  .logout{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:none;
+    color:var(--muted);font-weight:600}
+  .logout:hover{color:var(--danger);border-color:var(--danger)}
 
-  .test-row{display:flex;gap:10px;}
-  .btn{flex:1;font-family:inherit;font-size:15px;font-weight:600;border-radius:13px;padding:13px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);transition:.12s;}
-  .btn:active{transform:scale(.98);}
-  .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .btn-primary:hover{filter:brightness(1.04);}
-  .hint{margin:2px 0 0;text-align:center;font-size:12.5px;color:var(--muted);}
-  .note{margin:0;text-align:center;font-size:13px;color:var(--accent);font-weight:600;min-height:18px;}
+  main{padding:30px 36px;overflow-y:auto;height:100vh}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px}
+  .topbar h1{font-size:26px;font-weight:800}
+  .topbar .crumb{color:var(--muted);font-size:13px;margin-top:4px}
+  .pill{padding:8px 16px;border-radius:30px;background:rgba(56,229,154,.14);color:var(--ok);
+    font-weight:700;font-size:13px;border:1px solid rgba(56,229,154,.3)}
+  .pill.live::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--ok);margin-right:7px;animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.3}}
 
-  /* ===== 게임(미로) ===== */
-  .game{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;z-index:20;}
-  .game[hidden]{display:none;}
-  .game-head{width:100%;text-align:center;padding:22px 20px 8px;}
-  .game-head .ttl{font-size:13px;letter-spacing:3px;color:var(--accent);font-weight:700;}
-  .game-head .when{margin-top:5px;font-size:26px;font-weight:600;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}
-  .game-head .sub{margin-top:6px;color:var(--muted);font-size:14px;}
+  .grid{display:grid;gap:18px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;
+    backdrop-filter:blur(4px)}
+  .card h3{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+    display:flex;align-items:center;gap:8px;margin-bottom:14px}
+  .stat{font-size:34px;font-weight:800;line-height:1}
+  .stat small{font-size:14px;color:var(--muted);font-weight:600;margin-left:4px}
+  .sub-note{color:var(--muted);font-size:13px;margin-top:8px}
+  .trend{color:var(--ok);font-size:13px;font-weight:700}
+  .section-title{font-size:15px;font-weight:800;margin:30px 0 14px;display:flex;align-items:center;gap:9px}
 
-  .maze-area{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 16px 8px;min-height:0;width:100%;}
-  .stage{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);touch-action:none;overflow:hidden;}
-  .stage.shake{animation:shake .25s;}
-  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-  #maze{display:block;cursor:grab;}
-  #maze.grabbing{cursor:grabbing;}
+  /* battery */
+  .batt{display:flex;align-items:center;gap:14px}
+  .batt .cell{position:relative;width:64px;height:30px;border:2px solid var(--ink);border-radius:6px;padding:3px}
+  .batt .cell::after{content:"";position:absolute;right:-6px;top:8px;width:4px;height:12px;background:var(--ink);border-radius:2px}
+  .batt .fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--ok),var(--teal))}
 
-  .game-foot{padding:12px 20px 26px;min-height:20px;}
-  .btn-ghost{font-family:inherit;font-size:14px;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:11px;padding:9px 20px;cursor:pointer;}
-  .btn-ghost:hover{color:var(--ink);}
+  /* map */
+  .map{position:relative;height:320px;border-radius:16px;overflow:hidden;border:1px solid var(--line);
+    background:radial-gradient(120% 120% at 50% 0%,#0b3b52,#04202f 70%,#02131d)}
+  .map .grid-lines{position:absolute;inset:0;
+    background-image:linear-gradient(rgba(120,200,230,.08) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,200,230,.08) 1px,transparent 1px);
+    background-size:38px 38px}
+  .map svg{position:absolute;inset:0;width:100%;height:100%}
+  .depth-tag{position:absolute;right:14px;bottom:12px;font-size:12px;color:var(--muted);
+    background:rgba(0,0,0,.35);padding:6px 10px;border-radius:8px}
+  .mk{position:absolute;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 0 6px rgba(31,214,196,.25)}
+  .mk.start{background:var(--cyan)}
+  .mk.end{background:var(--warn)}
 
-  /* 성공 */
-  .solved{position:absolute;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;animation:fade .35s;}
-  .solved[hidden]{display:none;}
-  @keyframes fade{from{opacity:0}to{opacity:1}}
-  .check{width:74px;height:74px;border-radius:50%;background:var(--exit);box-shadow:0 0 0 12px var(--exit-soft);display:grid;place-items:center;}
-  .check svg{stroke:#fff;}
-  .solved .h{font-size:24px;font-weight:600;}
-  .solved .s{font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  /* AI list */
+  .ai-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:12px;
+    background:rgba(255,255,255,.03);margin-bottom:10px;border:1px solid var(--line)}
+  .ai-row .l{display:flex;align-items:center;gap:14px}
+  .ai-row .emj{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;
+    background:rgba(31,214,196,.12)}
+  .ai-row .name{font-weight:700}
+  .ai-row .conf{color:var(--muted);font-size:12px}
+  .ai-row .count{font-size:22px;font-weight:800;color:var(--teal)}
+  .ai-row.danger{border-color:rgba(255,90,110,.4);background:rgba(255,90,110,.08)}
+  .ai-row.danger .emj{background:rgba(255,90,110,.15)}
+  .ai-row.danger .count{color:var(--danger)}
+  .badge-danger{background:var(--danger);color:#fff;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:800}
 
-  @media (max-width:380px){.clock .t{font-size:22px;}}
+  /* gallery */
+  .gal{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .thumb{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+    cursor:pointer;background:linear-gradient(135deg,#0a3b52,#062334)}
+  .thumb .wm{position:absolute;inset:0;background:
+    radial-gradient(60% 40% at 30% 20%, rgba(120,220,255,.25), transparent),
+    radial-gradient(50% 50% at 80% 90%, rgba(31,214,196,.2), transparent)}
+  .thumb .tag{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;
+    background:rgba(0,0,0,.5)}
+  .thumb .vid{position:absolute;inset:0;display:grid;place-items:center;font-size:34px;color:rgba(255,255,255,.85)}
+  .thumb .acts{position:absolute;inset:0;background:rgba(2,12,20,.7);opacity:0;transition:.2s;
+    display:flex;align-items:center;justify-content:center;gap:10px}
+  .thumb:hover .acts{opacity:1}
+  .thumb .acts button{width:40px;height:40px;border-radius:50%;border:1px solid var(--teal);
+    background:rgba(31,214,196,.15);color:var(--teal);font-size:16px}
+
+  /* settings */
+  .set-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--line)}
+  .set-row:last-child{border:none}
+  .set-row .k{font-weight:700}
+  .set-row .d{color:var(--muted);font-size:13px;margin-top:3px}
+  .switch{width:48px;height:27px;border-radius:20px;background:rgba(255,255,255,.15);position:relative;border:none}
+  .switch.on{background:var(--teal)}
+  .switch i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on i{left:24px}
+  .btn-sm{padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);
+    color:var(--ink);font-weight:600;font-size:13px}
+  .btn-sm.accent{background:linear-gradient(135deg,var(--teal),var(--cyan));color:#022;border:none}
+
+  .page{animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}}
+
+  @media(max-width:860px){
+    header.nav{padding:14px 18px}
+    .brand b{font-size:15px}
+    .brand span{font-size:9px;letter-spacing:2px}
+    nav.menu{gap:15px;font-size:12.5px}
+    .navitem>a{white-space:nowrap}
+    .btn-login{padding:9px 16px;font-size:12.5px;letter-spacing:.5px}
+  }
+  @media(max-width:900px){
+    #app{grid-template-columns:1fr}
+    aside{position:fixed;left:0;top:0;z-index:40;transform:translateX(-100%);transition:.25s;width:250px}
+    aside.open{transform:none}
+    .g4,.g3,.g2{grid-template-columns:1fr 1fr}
+    .gal{grid-template-columns:1fr 1fr}
+    .burger{display:grid !important}
+  }
+  .burger{display:none;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);
+    background:rgba(255,255,255,.05);color:var(--ink);place-items:center;font-size:20px}
 </style>
 </head>
 <body>
-  <!-- 홈 -->
-  <main class="home" id="home">
-    <div class="top">
-      <h1>미로 알람</h1>
-      <div class="clock"><div class="t" id="clockT">--:--</div><div class="d" id="clockD"></div></div>
-    </div>
 
-    <section class="card">
-      <p class="card-title">난이도</p>
-      <div class="segmented" id="difficulty">
-        <label><input type="radio" name="diff" value="easy"><span>쉬움 4×4</span></label>
-        <label><input type="radio" name="diff" value="normal" checked><span>보통 5×5</span></label>
-        <label><input type="radio" name="diff" value="hard"><span>어려움 7×7</span></label>
+<!-- ============ LANDING ============ -->
+<section id="landing">
+  <video class="bgvid" id="bgVideo" autoplay muted loop playsinline></video>
+  <div class="ocean"></div>
+
+  <div class="scrim"></div>
+
+  <header class="nav">
+    <div class="brand">
+      <div><b>SeaOasis</b><span>OCEAN ROBOTICS</span></div>
+    </div>
+    <nav class="menu">
+      <div class="navitem">
+        <a onclick="openLogin()">Explorer <span class="car">▾</span></a>
+        <div class="dropdown">
+          <ul class="dd-list">
+            <li>최근 다이빙</li>
+            <li>3D Map</li>
+            <li>촬영 영상</li>
+            <li>이동 경로</li>
+          </ul>
+        </div>
       </div>
-    </section>
-
-    <section class="card">
-      <p class="card-title">요일별 알람</p>
-      <div id="alarmList"></div>
-    </section>
-
-    <button class="btn btn-primary" id="testNow">즉시 시작</button>
-    <p class="hint">캐릭터를 드래그해 출구까지 이동하세요. 벽에 닿으면 시작점으로 되돌아갑니다.</p>
-  </main>
-
-  <!-- 게임 -->
-  <div class="game" id="game" hidden>
-    <div class="game-head">
-      <div class="ttl">ALARM</div>
-      <div class="when" id="gameWhen"></div>
-      <div class="sub">미로를 탈출하면 알람이 꺼져요</div>
+      <div class="navitem">
+        <a onclick="openLogin()">Gallery <span class="car">▾</span></a>
+        <div class="dropdown">
+          <ul class="dd-list">
+            <li>사진</li>
+            <li>영상</li>
+          </ul>
+        </div>
+      </div>
+      <div class="navitem">
+        <a onclick="openLogin()">AI Analysis <span class="car">▾</span></a>
+        <div class="dropdown right">
+          <ul class="dd-list">
+            <li>AI 인식 결과</li>
+            <li>생물 자동 인식</li>
+            <li>개체 수 집계</li>
+            <li>위험 감지</li>
+            <li>종 분류</li>
+          </ul>
+        </div>
+      </div>
+      <div class="navitem">
+        <a onclick="openLogin()">Settings <span class="car">▾</span></a>
+        <div class="dropdown right">
+          <ul class="dd-list">
+            <li>기기</li>
+            <li>펌웨어</li>
+            <li>계정</li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <div class="nav-right">
+      <button class="btn-login" onclick="openLogin()">Register</button>
     </div>
+  </header>
 
-    <div class="maze-area">
-      <div class="stage" id="stage"><canvas id="maze"></canvas></div>
-    </div>
+</section>
 
-    <div class="solved" id="solved" hidden>
-      <div class="check"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
-      <div class="h">좋은 아침이에요</div>
-      <div class="s" id="solvedT"></div>
-    </div>
+<!-- ============ LOGIN MODAL ============ -->
+<div class="overlay hide" id="loginModal">
+  <div class="login-card" style="position:relative">
+    <button class="x-close" onclick="closeLogin()">×</button>
+    <h2>SeaOasis 로그인</h2>
+    <p class="sub">다이빙 기록과 AI 분석 결과를 확인하세요</p>
+    <form onsubmit="doLogin(event)">
+      <div class="field">
+        <label>이메일</label>
+        <input type="email" id="email" placeholder="diver@seaoasis.io" value="diver@seaoasis.io" required>
+      </div>
+      <div class="field">
+        <label>비밀번호</label>
+        <input type="password" id="pw" placeholder="••••••••" value="dive1234" required>
+      </div>
+      <button class="go" type="submit">로그인하고 대시보드 열기</button>
+    </form>
+    <p class="demo">데모 계정이 미리 입력되어 있어요 · <b>바로 로그인</b> 눌러보세요</p>
   </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hide">
+  <aside id="aside">
+    <div class="brand">
+      <div><b>SeaOasis</b><span>OCEAN ROBOTICS</span></div>
+    </div>
+    <div class="side-menu" id="sideMenu">
+      <button data-page="dashboard" class="active"><span class="ic">🏠</span> Dashboard</button>
+      <button data-page="explorer"><span class="ic">🧭</span> Explorer</button>
+      <button data-page="gallery"><span class="ic">🖼️</span> Gallery</button>
+      <button data-page="ai"><span class="ic">🤖</span> AI Analysis</button>
+      <button data-page="settings"><span class="ic">⚙️</span> Settings</button>
+    </div>
+    <div class="side-foot">
+      <div class="who"><div class="av">D</div><div><div style="color:var(--ink);font-weight:700">Diver</div><div>diver@seaoasis.io</div></div></div>
+      <button class="logout" onclick="logout()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:14px">
+        <button class="burger" onclick="document.getElementById('aside').classList.toggle('open')">☰</button>
+        <div>
+          <h1 id="pageTitle">Dashboard</h1>
+          <div class="crumb" id="pageCrumb">SeaOasis · 최근 다이빙 요약</div>
+        </div>
+      </div>
+      <span class="pill live">Sea-Buddy 온라인</span>
+    </div>
+    <div id="pageBody"></div>
+  </main>
+</div>
 
 <script>
+/* ---------- optional real background video ----------
+   실제 바다 mp4를 넣으려면 아래 경로만 채우면 됩니다.
+   예: const OCEAN_VIDEO_URL = 'assets/ocean.mp4';
+   비워두면 아래 CSS/SVG 애니메이션 바다 씬이 표시됩니다. */
+const OCEAN_VIDEO_URL = 'assets/bg-operating.mp4';
 (function(){
-  "use strict";
-  const $=id=>document.getElementById(id);
-
-  /* ---------- 알람음 (Web Audio) ---------- */
-  const Sound={
-    ctx:null,timer:null,playing:false,
-    ensure(){const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;if(!this.ctx)this.ctx=new A();if(this.ctx.state==="suspended")this.ctx.resume();return this.ctx;},
-    beep(f,s,d){const c=this.ctx,o=c.createOscillator(),g=c.createGain();o.type="triangle";o.frequency.value=f;o.connect(g);g.connect(c.destination);const t=c.currentTime+s;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.18,t+.02);g.gain.linearRampToValueAtTime(0,t+d);o.start(t);o.stop(t+d+.02);},
-    start(){if(this.playing||!this.ensure())return;this.playing=true;const cy=()=>{if(!this.ctx)return;this.beep(880,0,.12);this.beep(880,.18,.12);this.beep(660,.42,.16);};cy();this.timer=setInterval(cy,1300);},
-    stop(){this.playing=false;if(this.timer){clearInterval(this.timer);this.timer=null;}}
-  };
-
-  /* ---------- 미로 ---------- */
-  const SIZES={easy:4,normal:5,hard:7};
-  const Maze={
-    canvas:$("maze"),ctx:$("maze").getContext("2d"),stage:$("stage"),
-    n:10,c:40,r:9,t:6,W:0,H:0,prevC:0,
-    pos:{x:0,y:0},cells:null,segs:null,rects:null,
-    dragging:false,solved:false,flash:false,onSolve:null,
-
-    build(n){
-      this.n=n;const N=n;
-      const cells=[];for(let y=0;y<N;y++){const row=[];for(let x=0;x<N;x++)row.push({N:1,E:1,S:1,W:1,v:0});cells.push(row);}
-      const dirs=[[0,-1,"N","S"],[1,0,"E","W"],[0,1,"S","N"],[-1,0,"W","E"]];
-      const st=[[0,0]];cells[0][0].v=1;
-      while(st.length){const[x,y]=st[st.length-1];const o=[];for(const[dx,dy,a,b]of dirs){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<N&&ny>=0&&ny<N&&!cells[ny][nx].v)o.push([dx,dy,a,b,nx,ny]);}if(!o.length){st.pop();continue;}const[dx,dy,a,b,nx,ny]=o[Math.floor(Math.random()*o.length)];cells[y][x][a]=0;cells[ny][nx][b]=0;cells[ny][nx].v=1;st.push([nx,ny]);}
-      this.cells=cells;this.solved=false;this.prevC=0;
-      this.layout(true);
-    },
-
-    walls(){
-      const{c,t,n,cells}=this,segs=[];
-      for(let y=0;y<n;y++)for(let x=0;x<n;x++){const cell=cells[y][x],x0=x*c,y0=y*c;
-        if(cell.N)segs.push([x0,y0,x0+c,y0]);
-        if(cell.W)segs.push([x0,y0,x0,y0+c]);
-        if(x===n-1&&cell.E)segs.push([x0+c,y0,x0+c,y0+c]);
-        if(y===n-1&&cell.S&&!(x===n-1))segs.push([x0,y0+c,x0+c,y0+c]); /* 출구 셀 하단은 열어 둠 */
-      }
-      this.segs=segs;
-      this.rects=segs.map(([x1,y1,x2,y2])=>({x:Math.min(x1,x2)-t/2,y:Math.min(y1,y2)-t/2,w:Math.abs(x2-x1)+t,h:Math.abs(y2-y1)+t}));
-    },
-
-    layout(reset){
-      const area=this.stage.parentElement,aw=area.clientWidth-32,ah=area.clientHeight-16;
-      if(aw<=0||ah<=0)return;
-      let c=Math.floor(Math.min(aw/this.n,ah/this.n));c=Math.max(30,Math.min(110,c));
-      this.c=c;this.r=c*0.22;this.t=Math.max(4,Math.round(c*0.16));
-      const W=this.n*c,H=this.n*c,dpr=window.devicePixelRatio||1;
-      this.W=W;this.H=H;
-      this.canvas.width=W*dpr;this.canvas.height=H*dpr;
-      this.canvas.style.width=W+"px";this.canvas.style.height=H+"px";
-      this.stage.style.width=W+"px";this.stage.style.height=H+"px";
-      this.ctx.setTransform(dpr,0,0,dpr,0,0);
-      this.walls();
-      if(reset||!this.prevC)this.pos={x:c*0.5,y:c*0.5};else{const k=c/this.prevC;this.pos={x:this.pos.x*k,y:this.pos.y*k};}
-      this.prevC=c;this.render();
-    },
-
-    render(){
-      const{ctx,W,H,c,n,segs,t}=this;
-      ctx.clearRect(0,0,W,H);
-      ctx.fillStyle="#fff";ctx.fillRect(0,0,W,H);
-      /* 시작 셀 */
-      ctx.fillStyle="rgba(79,70,229,.10)";ctx.fillRect(2,2,c-4,c-4);
-      /* 출구 셀 */
-      const ex=(n-1)*c;ctx.fillStyle="rgba(16,185,129,.14)";ctx.fillRect(ex+2,ex+2,c-4,c-4);
-      ctx.fillStyle="rgba(16,185,129,.95)";ctx.beginPath();ctx.arc(ex+c/2,ex+c/2,c*0.16,0,7);ctx.fill();
-      /* 벽 */
-      ctx.strokeStyle="#1E1F24";ctx.lineWidth=t;ctx.lineCap="round";ctx.lineJoin="round";ctx.beginPath();
-      for(const[x1,y1,x2,y2]of segs){ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);}ctx.stroke();
-      /* 캐릭터 */
-      const p=this.pos,r=this.r;
-      ctx.fillStyle=this.flash?"#EF4444":"#4F46E5";
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();
-      ctx.fillStyle="#fff";
-      ctx.beginPath();ctx.arc(p.x-r*0.32,p.y-r*0.12,r*0.18,0,7);ctx.fill();
-      ctx.beginPath();ctx.arc(p.x+r*0.32,p.y-r*0.12,r*0.18,0,7);ctx.fill();
-    },
-
-    collide(x,y){const r=this.r;for(const R of this.rects){const nx=Math.max(R.x,Math.min(x,R.x+R.w)),ny=Math.max(R.y,Math.min(y,R.y+R.h)),dx=x-nx,dy=y-ny;if(dx*dx+dy*dy<r*r)return true;}return false;},
-
-    reset(){
-      this.pos={x:this.c*0.5,y:this.c*0.5};
-      this.dragging=false;this.flash=true;
-      this.canvas.classList.remove("grabbing");
-      this.stage.classList.add("shake");
-      this.render();
-      setTimeout(()=>{this.stage.classList.remove("shake");},250);
-      setTimeout(()=>{this.flash=false;this.render();},260);
-    },
-
-    move(tx,ty){
-      const step=Math.max(1.2,this.r*0.4);let g=0;
-      while(g++<2000){
-        const dx=tx-this.pos.x,dy=ty-this.pos.y,dist=Math.hypot(dx,dy);
-        if(dist<0.5)break;
-        const s=Math.min(step,dist),nx=this.pos.x+dx/dist*s,ny=this.pos.y+dy/dist*s;
-        if(this.collide(nx,ny)){this.reset();return;} /* 벽에 닿으면 시작점으로 */
-        this.pos.x=nx;this.pos.y=ny;
-      }
-      this.render();this.check();
-    },
-
-    check(){
-      if(this.solved)return;
-      const ex=(this.n-0.5)*this.c;
-      if(Math.hypot(this.pos.x-ex,this.pos.y-ex)<this.c*0.4){this.solved=true;this.dragging=false;this.canvas.classList.remove("grabbing");if(this.onSolve)this.onSolve();}
-    },
-
-    local(e){const R=this.canvas.getBoundingClientRect();return{x:(e.clientX-R.left)*(this.W/R.width),y:(e.clientY-R.top)*(this.H/R.height)};},
-
-    bind(){
-      const cv=this.canvas;
-      cv.addEventListener("pointerdown",e=>{if(this.solved)return;const p=this.local(e);if(Math.hypot(p.x-this.pos.x,p.y-this.pos.y)<this.r*3.5){this.dragging=true;cv.classList.add("grabbing");cv.setPointerCapture(e.pointerId);e.preventDefault();}});
-      cv.addEventListener("pointermove",e=>{if(!this.dragging||this.solved)return;const p=this.local(e);this.move(p.x,p.y);e.preventDefault();});
-      const end=()=>{this.dragging=false;cv.classList.remove("grabbing");};
-      cv.addEventListener("pointerup",end);cv.addEventListener("pointercancel",end);
-    }
-  };
-  Maze.bind();
-  window.addEventListener("resize",()=>{if(!$("game").hidden)Maze.layout(false);});
-
-  /* ---------- 알람 상태/예약 ---------- */
-  const KEY="mazeAlarm.v2";
-  const DAYS=[{k:"mon",l:"월"},{k:"tue",l:"화"},{k:"wed",l:"수"},{k:"thu",l:"목"},{k:"fri",l:"금"},{k:"sat",l:"토"},{k:"sun",l:"일"}];
-  const JS2KEY=["sun","mon","tue","wed","thu","fri","sat"];
-  const DEF={difficulty:"normal",alarms:{}};
-  DAYS.forEach(d=>DEF.alarms[d.k]={time:"07:00",on:false});
-
-  let S=load();
-  let ringing=false,preview=false,lastFired=null;
-
-  function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(!o)return clone(DEF);o.alarms=Object.assign({},DEF.alarms,o.alarms||{});return Object.assign({},DEF,o);}catch(e){return clone(DEF);}}
-  function clone(o){return JSON.parse(JSON.stringify(o));}
-  function save(){localStorage.setItem(KEY,JSON.stringify(S));}
-
-  /* 홈 렌더 */
-  function renderHome(){
-    $("difficulty").querySelector(`input[value="${S.difficulty}"]`).checked=true;
-    const wrap=$("alarmList");wrap.innerHTML="";
-    DAYS.forEach(d=>{
-      const a=S.alarms[d.k];
-      const row=document.createElement("div");row.className="alarm-row "+(a.on?"on":"off");
-      row.innerHTML=`<span class="day">${d.l}</span>
-        <input type="time" value="${a.time}">
-        <label class="switch"><input type="checkbox" ${a.on?"checked":""}><span class="track"><span class="thumb"></span></span></label>`;
-      const time=row.querySelector('input[type=time]');
-      const tog=row.querySelector('input[type=checkbox]');
-      time.addEventListener("change",e=>{a.time=e.target.value||"07:00";lastFired=null;save();Sound.ensure();});
-      tog.addEventListener("change",e=>{a.on=e.target.checked;row.className="alarm-row "+(a.on?"on":"off");lastFired=null;save();Sound.ensure();});
-      wrap.appendChild(row);
-    });
-  }
-
-  /* 시계 + 알람 체크 */
-  function tick(){
-    const now=new Date();
-    const hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0");
-    $("clockT").textContent=`${hh}:${mm}`;
-    $("clockD").textContent=new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long"}).format(now);
-    if(!ringing){
-      const a=S.alarms[JS2KEY[now.getDay()]];
-      const cur=`${hh}:${mm}`,key=now.toDateString()+cur;
-      if(a&&a.on&&a.time===cur&&now.getSeconds()===0&&lastFired!==key){lastFired=key;fire(false);}
-    }
-  }
-
-  /* ---------- 발동 / 타이머 ---------- */
-  function fire(isPreview){
-    if(ringing)return;ringing=true;preview=isPreview;
-    const now=new Date();
-    const wd=new Intl.DateTimeFormat("ko-KR",{weekday:"long"}).format(now);
-    const h=now.getHours(),m=String(now.getMinutes()).padStart(2,"0");
-    const ap=h<12?"오전":"오후",h12=(h%12)||12;
-    $("gameWhen").textContent=`${wd} ${ap} ${h12}:${m}`;
-    $("game").hidden=false;$("solved").hidden=true;
-    requestAnimationFrame(()=>{Maze.build(SIZES[S.difficulty]||7);Sound.start();});
-  }
-
-  Maze.onSolve=function(){
-    Sound.stop();
-    const now=new Date();
-    $("solvedT").textContent=`${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    setTimeout(()=>{$("solved").hidden=false;},400);
-    setTimeout(close,2400);
-  };
-  function close(){Sound.stop();ringing=false;$("game").hidden=true;$("solved").hidden=true;}
-
-  /* ---------- 이벤트 ---------- */
-  $("difficulty").addEventListener("change",e=>{if(e.target.name==="diff"){S.difficulty=e.target.value;save();}Sound.ensure();});
-  $("testNow").addEventListener("click",()=>{Sound.ensure();fire(true);});
-  document.addEventListener("pointerdown",()=>Sound.ensure(),{once:true});
-
-  /* ---------- 시작 ---------- */
-  renderHome();tick();setInterval(tick,1000);
+  if(!OCEAN_VIDEO_URL) return;
+  const v=document.getElementById('bgVideo');
+  v.src=OCEAN_VIDEO_URL;
+  v.addEventListener('loadeddata',()=>{v.classList.add('ready');document.body.classList.add('has-video')});
+  v.addEventListener('error',()=>v.remove());
 })();
+
+
+/* ---------- login ---------- */
+function openLogin(){document.getElementById('loginModal').classList.remove('hide')}
+function closeLogin(){document.getElementById('loginModal').classList.add('hide')}
+function doLogin(e){
+  e.preventDefault();
+  document.getElementById('loginModal').classList.add('hide');
+  document.getElementById('landing').classList.add('hide');
+  document.getElementById('app').classList.remove('hide');
+  render('dashboard');
+}
+function logout(){
+  document.getElementById('app').classList.add('hide');
+  document.getElementById('landing').classList.remove('hide');
+  window.scrollTo(0,0);
+}
+
+/* ---------- pages ---------- */
+const META={
+  dashboard:['Dashboard','SeaOasis · 최근 다이빙 요약'],
+  explorer:['Explorer','다이빙이 끝나면 여기서 모든 걸 확인합니다'],
+  gallery:['Gallery','촬영한 사진과 영상'],
+  ai:['AI Analysis','AI가 자동으로 분석했어요'],
+  settings:['Settings','기기 · 펌웨어 · 계정']
+};
+
+const PAGES={
+  dashboard:`
+    <div class="grid g4">
+      <div class="card">
+        <h3>🐢 최근 다이빙</h3>
+        <div class="stat">42<small>분</small></div>
+        <div class="sub-note">제주 문섬 · 오늘 10:24</div>
+      </div>
+      <div class="card">
+        <h3>🤖 Sea-Buddy 상태</h3>
+        <div class="stat" style="color:var(--ok)">정상</div>
+        <div class="sub-note">수온 21.4℃ · 수심 18m</div>
+      </div>
+      <div class="card">
+        <h3>🔋 배터리</h3>
+        <div class="batt" style="margin-top:6px">
+          <div class="cell"><div class="fill" style="width:78%"></div></div>
+          <div class="stat" style="font-size:26px">78<small>%</small></div>
+        </div>
+        <div class="sub-note">약 1시간 20분 잔여</div>
+      </div>
+      <div class="card">
+        <h3>📸 최근 촬영</h3>
+        <div class="stat">126<small>장</small></div>
+        <div class="sub-note">사진 98 · 영상 28</div>
+      </div>
+    </div>
+
+    <div class="section-title">🤖 이번 다이빙 AI 하이라이트</div>
+    <div class="grid g4">
+      ${aiRowsCompact()}
+    </div>
+
+    <div class="section-title">🧭 이동 경로 미리보기</div>
+    <div class="card">${miniMap()}</div>
+  `,
+
+  explorer:`
+    <div class="grid g2">
+      <div class="card">
+        <h3>🗺️ 3D MAP · 이동 경로</h3>
+        ${bigMap()}
+      </div>
+      <div class="card">
+        <h3>🎬 촬영 영상</h3>
+        <div class="gal" style="grid-template-columns:1fr 1fr">
+          ${thumb('영상 · 02:14',true,'coral')}
+          ${thumb('영상 · 00:48',true,'turtle')}
+          ${thumb('영상 · 01:30',true,'ray')}
+          ${thumb('영상 · 00:22',true,'jelly')}
+        </div>
+      </div>
+    </div>
+    <div class="section-title">🤖 AI 인식 결과</div>
+    <div class="grid g2">
+      <div class="card">${aiRows()}</div>
+      <div class="card">
+        <h3>📍 이동 경로 요약</h3>
+        <div class="set-row"><div><div class="k">총 이동 거리</div><div class="d">GPS + 수중 항법 기준</div></div><div class="stat" style="font-size:24px">1.8<small>km</small></div></div>
+        <div class="set-row"><div><div class="k">최대 수심</div></div><div class="stat" style="font-size:24px">24<small>m</small></div></div>
+        <div class="set-row"><div><div class="k">평균 속도</div></div><div class="stat" style="font-size:24px">0.6<small>m/s</small></div></div>
+        <div class="set-row"><div><div class="k">촬영 스팟</div></div><div class="stat" style="font-size:24px">7<small>곳</small></div></div>
+      </div>
+    </div>
+  `,
+
+  gallery:`
+    <div style="display:flex;gap:10px;margin-bottom:18px">
+      <button class="btn-sm accent">전체</button>
+      <button class="btn-sm">사진 98</button>
+      <button class="btn-sm">영상 28</button>
+      <button class="btn-sm" style="margin-left:auto">⬇ 전체 다운로드</button>
+    </div>
+    <div class="gal">
+      ${thumb('사진',false,'coral')}
+      ${thumb('영상 02:14',true,'turtle')}
+      ${thumb('사진',false,'ray')}
+      ${thumb('사진',false,'jelly')}
+      ${thumb('영상 00:48',true,'coral')}
+      ${thumb('사진',false,'turtle')}
+      ${thumb('사진',false,'ray')}
+      ${thumb('영상 01:30',true,'jelly')}
+    </div>
+  `,
+
+  ai:`
+    <div class="card" style="margin-bottom:18px;background:linear-gradient(135deg,rgba(31,214,196,.12),rgba(63,208,255,.06))">
+      <h3>🤖 AI 자동 분석 완료</h3>
+      <div style="font-size:17px;line-height:1.7">
+        이번 다이빙에서 <b style="color:var(--teal)">거북 3마리</b>, <b style="color:var(--teal)">가오리 2마리</b>,
+        <b style="color:var(--teal)">산호 12종</b>을 발견했어요.
+        <b style="color:var(--danger)">해파리 위험이 1회</b> 감지되었습니다.
+      </div>
+    </div>
+    <div class="card">${aiRows()}</div>
+  `,
+
+  settings:`
+    <div class="grid g3">
+      <div class="card">
+        <h3>📟 기기</h3>
+        <div class="set-row"><div><div class="k">모델</div><div class="d">SeaOasis Pro X1</div></div></div>
+        <div class="set-row"><div><div class="k">시리얼</div><div class="d">SB-2025-0417</div></div><span class="pill" style="background:rgba(56,229,154,.14);color:var(--ok)">연결됨</span></div>
+        <div class="set-row"><div><div class="k">자동 촬영</div><div class="d">생물 감지 시 자동 기록</div></div><button class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
+      </div>
+      <div class="card">
+        <h3>⬆️ 펌웨어</h3>
+        <div class="set-row"><div><div class="k">현재 버전</div><div class="d">v3.4.1</div></div></div>
+        <div class="set-row"><div><div class="k">최신 버전</div><div class="d" style="color:var(--warn)">v3.5.0 사용 가능</div></div><button class="btn-sm accent">업데이트</button></div>
+        <div class="set-row"><div><div class="k">자동 업데이트</div></div><button class="switch" onclick="this.classList.toggle('on')"><i></i></button></div>
+      </div>
+      <div class="card">
+        <h3>👤 계정</h3>
+        <div class="set-row"><div><div class="k">이메일</div><div class="d">diver@seaoasis.io</div></div></div>
+        <div class="set-row"><div><div class="k">클라우드 백업</div><div class="d">다이빙 자동 업로드</div></div><button class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
+        <div class="set-row"><div><div class="k">알림</div><div class="d">위험 감지 푸시</div></div><button class="switch on" onclick="this.classList.toggle('on')"><i></i></button></div>
+      </div>
+    </div>
+  `
+};
+
+/* ---------- helpers ---------- */
+const CREATURES={
+  turtle:['🐢','바다거북','98%'],
+  ray:['🐟','가오리','95%'],
+  coral:['🪸','산호','92%'],
+  jelly:['🎐','해파리','89%']
+};
+function aiRows(){
+  return `
+    ${aiRow('🐢','바다거북','정확도 98%','3',false)}
+    ${aiRow('🐟','가오리','정확도 95%','2',false)}
+    ${aiRow('🪸','산호','정확도 92% · 12종','12',false)}
+    ${aiRow('🎐','해파리','위험 감지 · 회피 완료','1',true)}
+  `;
+}
+function aiRow(e,n,c,cnt,danger){
+  return `<div class="ai-row ${danger?'danger':''}">
+    <div class="l"><div class="emj">${e}</div><div><div class="name">${n}</div><div class="conf">${c}</div></div></div>
+    ${danger?'<span class="badge-danger">⚠ 위험 1회</span>':`<div class="count">${cnt}<span style="font-size:12px;color:var(--muted)"> 회</span></div>`}
+  </div>`;
+}
+function aiRowsCompact(){
+  const items=[['🐢','거북','3'],['🐟','가오리','2'],['🪸','산호','12종'],['🎐','해파리 위험','1']];
+  return items.map((it,i)=>`
+    <div class="card ${i===3?'':''}" style="${i===3?'border-color:rgba(255,90,110,.4);background:rgba(255,90,110,.08)':''}">
+      <div style="font-size:30px">${it[0]}</div>
+      <div class="stat" style="font-size:28px;margin-top:8px;${i===3?'color:var(--danger)':'color:var(--teal)'}">${it[2]}</div>
+      <div class="sub-note">${it[1]}</div>
+    </div>`).join('');
+}
+function thumb(tag,isVid,kind){
+  const emj={coral:'🪸',turtle:'🐢',ray:'🐟',jelly:'🎐'}[kind]||'🌊';
+  return `<div class="thumb">
+    <div class="wm"></div>
+    <div style="position:absolute;inset:0;display:grid;place-items:center;font-size:40px;opacity:.9">${emj}</div>
+    <span class="tag">${tag}</span>
+    ${isVid?'<div class="vid">▶</div>':''}
+    <div class="acts">
+      <button title="다운로드">⬇</button>
+      <button title="공유">↗</button>
+    </div>
+  </div>`;
+}
+function miniMap(){
+  return `<div class="map" style="height:220px">
+    <div class="grid-lines"></div>
+    <svg viewBox="0 0 400 220" preserveAspectRatio="none">
+      <path d="M40 180 C 120 120, 160 200, 240 120 S 340 60, 360 40"
+        fill="none" stroke="url(#g)" stroke-width="3" stroke-dasharray="6 5"/>
+      <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#3fd0ff"/><stop offset="1" stop-color="#1fd6c4"/></linearGradient></defs>
+    </svg>
+    <div class="mk start" style="left:10%;top:82%"></div>
+    <div class="mk" style="left:60%;top:55%"></div>
+    <div class="mk end" style="left:90%;top:18%"></div>
+    <div class="depth-tag">깊이 0m → 24m</div>
+  </div>`;
+}
+function bigMap(){
+  return `<div class="map">
+    <div class="grid-lines"></div>
+    <svg viewBox="0 0 500 320" preserveAspectRatio="none">
+      <path d="M50 260 C 140 180, 180 300, 260 190 S 380 120, 440 70"
+        fill="none" stroke="url(#g2)" stroke-width="3" stroke-dasharray="7 6"/>
+      <defs><linearGradient id="g2" x1="0" x2="1"><stop offset="0" stop-color="#3fd0ff"/><stop offset="1" stop-color="#1fd6c4"/></linearGradient></defs>
+    </svg>
+    <div class="mk start" style="left:10%;top:81%"></div>
+    <div class="mk" style="left:40%;top:60%"></div>
+    <div class="mk" style="left:62%;top:50%"></div>
+    <div class="mk end" style="left:88%;top:22%"></div>
+    <div class="depth-tag">총 1.8km · 최대수심 24m</div>
+  </div>`;
+}
+
+/* ---------- router ---------- */
+function render(page){
+  document.getElementById('pageTitle').textContent=META[page][0];
+  document.getElementById('pageCrumb').textContent=META[page][1];
+  const body=document.getElementById('pageBody');
+  body.innerHTML=`<div class="page">${PAGES[page]}</div>`;
+  document.querySelectorAll('#sideMenu button').forEach(b=>
+    b.classList.toggle('active',b.dataset.page===page));
+  document.getElementById('aside').classList.remove('open');
+}
+document.getElementById('sideMenu').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(btn) render(btn.dataset.page);
+});
 </script>
 </body>
 </html>

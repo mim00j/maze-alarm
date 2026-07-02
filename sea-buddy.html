@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeaOasis</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --white:#ffffff;
+    --glass:rgba(255,255,255,.14);
+    --glass-strong:rgba(255,255,255,.22);
+    --stroke:rgba(255,255,255,.32);
+    --accent:#3ad0c8;
+    --ink:#06283a;
+    --green:#18c268;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;
+  }
+  html,body{ height:100%; }
+  body{ display:flex; align-items:center; justify-content:center; background:#04222f; }
+
+  /* fixed mobile size (390x844), scaled down only if the window is smaller */
+  .phone{ position:relative;
+    width:min(100vw, calc(100vh * 390 / 844), 390px);
+    height:min(100vh, calc(100vw * 844 / 390), 844px);
+    overflow:hidden; background:#04222f; border-radius:30px; box-shadow:0 22px 70px rgba(0,0,0,.45); }
+  .screen{ position:absolute; inset:0; z-index:2; color:var(--white); }
+
+  /* ---------- shared status bar (overlay) ---------- */
+  .statusbar{ position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:15px 26px 4px; font-size:15px; font-weight:600; text-shadow:0 1px 4px rgba(0,0,0,.35); z-index:12; }
+  .sysicons{ display:flex; gap:6px; align-items:center; }
+  .bars{ display:flex; align-items:flex-end; gap:2px; height:12px; }
+  .bars span{ width:3px; background:currentColor; border-radius:1px; }
+  .bars span:nth-child(1){height:5px} .bars span:nth-child(2){height:8px} .bars span:nth-child(3){height:11px} .bars span:nth-child(4){height:13px}
+  .batt{ width:24px; height:12px; border:1.6px solid currentColor; border-radius:3px; position:relative; }
+  .batt::after{ content:''; position:absolute; right:-4px; top:3px; width:2px; height:5px; background:currentColor; border-radius:0 2px 2px 0; }
+  .batt i{ position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:70%; background:currentColor; border-radius:1px; }
+  .statusbar{ color:#fff; }
+  .phone.light{ background:#e9eff4; }
+  .phone.light .statusbar{ color:#1e2b33; text-shadow:none; }
+
+  /* ---------- views (full height; status bar + tabs float over them) ---------- */
+  .views{ position:absolute; inset:0; }
+  .view{ position:absolute; inset:0; display:none; flex-direction:column; }
+  .view.on{ display:flex; }
+
+  /* ===== HOME ===== */
+  #view-home .bg-img,#view-home .bg-fallback{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  #view-home .bg-fallback{ background:radial-gradient(120% 80% at 50% -10%,#6fd3d8 0%,#2a97a8 34%,#0d5f77 62%,#063d55 100%); }
+  #view-home .bg-img{ transform:scale(1.18); transform-origin:center; }
+  #view-home .grade{ position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:linear-gradient(180deg, rgba(3,26,40,.55) 0%, rgba(3,26,40,.12) 18%, rgba(3,26,40,0) 40%, rgba(3,26,40,.18) 60%, rgba(3,26,40,.8) 100%); }
+  .particles{ position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; }
+  .particles i{ position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.55); }
+  #view-home .home-inner{ position:relative; z-index:2; display:flex; flex-direction:column; flex:1; color:#fff; padding-top:44px; padding-bottom:78px; }
+
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; padding:8px 24px 6px; }
+  .appname{ font-size:24px; font-weight:800; letter-spacing:.3px; text-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .menu{ width:44px; height:44px; border-radius:50%; border:1px solid var(--stroke); background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; flex:none; }
+  .menu span{ width:18px; height:2px; border-radius:2px; background:#fff; }
+  .subinfo{ display:flex; align-items:center; gap:8px; margin-top:5px; font-size:13px; font-weight:500; opacity:.9; text-shadow:0 1px 4px rgba(0,0,0,.4); }
+  .subinfo .loc{ font-weight:600; } .subinfo .sep{ opacity:.45; } .subinfo .temp{ font-weight:600; }
+
+  .route{ position:relative; flex:1; margin:6px 6px 0; }
+  .route svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .route .path-bg{ fill:none; stroke:rgba(6,40,58,.5); stroke-width:9; stroke-linecap:round; vector-effect:non-scaling-stroke; }
+  .route .path{ fill:none; stroke:#fff; stroke-width:3.5; stroke-linecap:round; stroke-dasharray:2 8; vector-effect:non-scaling-stroke; filter:drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
+  .marker{ position:absolute; transform:translate(-50%,-50%); z-index:3; }
+  .marker.start,.marker.end{ width:20px; height:20px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+  .marker.start{ background:#0d1c22; } .marker.end{ background:var(--accent); }
+  .bubble{ position:absolute; transform:translate(-50%,-50%); z-index:4; cursor:pointer; display:flex; align-items:center; gap:6px;
+    background:#fff; color:#0d1c22; font-size:12px; font-weight:700; padding:5px 11px 5px 8px; border:none; border-radius:20px; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,.25); transition:transform .12s; }
+  .bubble:active{ transform:translate(-50%,-50%) scale(.92); }
+  .bubble .play{ width:16px; height:16px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; flex:none; }
+  .bubble .play::before{ content:''; border-left:5px solid #06283a; border-top:3.5px solid transparent; border-bottom:3.5px solid transparent; margin-left:1px; }
+  .route-hint{ position:absolute; left:50%; bottom:8px; transform:translateX(-50%); z-index:4; white-space:nowrap; font-size:11.5px; font-weight:500; color:rgba(255,255,255,.9); text-shadow:0 1px 4px rgba(0,0,0,.5); background:rgba(3,26,40,.45); padding:6px 15px; border-radius:16px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); transition:opacity .6s ease, transform .6s ease; }
+  .route-hint.hide{ opacity:0; transform:translate(-50%,8px); pointer-events:none; }
+
+  .infobox{ position:relative; margin:0 14px; padding:20px 22px 22px; border-radius:26px 26px 22px 22px; background:linear-gradient(180deg, rgba(58,208,200,.20), rgba(6,54,70,.42)); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); border:1px solid var(--stroke); box-shadow:0 -6px 30px rgba(0,0,0,.25); }
+  .ib-handle{ width:38px; height:5px; border-radius:3px; background:rgba(255,255,255,.5); margin:-8px auto 14px; }
+  .ib-title{ display:flex; align-items:center; gap:9px; font-size:15px; font-weight:600; opacity:.95; margin-bottom:16px; }
+  .ib-product{ width:64px; height:auto; flex:none; filter:drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
+  .ib-title i{ opacity:.6; font-style:normal; margin:0 6px; }
+  .ib-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; row-gap:5px; }
+  .ib-grid .k{ font-size:13px; opacity:.7; font-weight:500; } .ib-grid .v{ font-size:19px; font-weight:700; } .ib-grid .dim{ opacity:.4; }
+
+  /* ===== LIVE ===== */
+  #view-live{ background:#03161f; }
+  #view-live video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  #view-live .lv-grade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 55%, rgba(0,0,0,.6) 100%); }
+  #view-live .lv{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; color:#fff; padding-top:40px; padding-bottom:70px; }
+  .lv-top{ display:flex; align-items:center; gap:10px; padding:12px 18px; }
+  .lv-rec{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; letter-spacing:.5px; background:rgba(0,0,0,.4); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
+  .lv-rec b{ width:9px; height:9px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 10px #ff4d4d; animation:blink 1.2s infinite; }
+  @keyframes blink{ 50%{ opacity:.3; } }
+  .lv-depth{ margin-left:auto; font-size:13px; font-weight:700; background:rgba(0,0,0,.4); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
+  .lv-alert{ align-self:center; margin-top:10px; display:flex; align-items:center; gap:9px; font-size:13px; font-weight:600; background:rgba(3,26,40,.55); border:1px solid rgba(255,255,255,.22); padding:9px 16px; border-radius:16px; backdrop-filter:blur(10px); box-shadow:0 6px 18px rgba(0,0,0,.3); }
+  .lv-alert .d{ width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); }
+  .lv-alert.warn{ background:rgba(120,20,20,.6); border-color:rgba(255,120,100,.5); }
+  .lv-alert.warn .d{ background:#ff5a5a; box-shadow:0 0 8px #ff5a5a; }
+  .lv-spacer{ flex:1; }
+  .lv-followrow{ display:flex; justify-content:center; gap:10px; margin-bottom:18px; }
+  .lv-toggle{ display:flex; background:rgba(0,0,0,.4); border:1px solid var(--stroke); border-radius:22px; padding:5px; backdrop-filter:blur(10px); }
+  .lv-toggle button{ border:none; background:transparent; color:rgba(255,255,255,.7); font-size:14px; font-weight:700; padding:9px 22px; border-radius:18px; cursor:pointer; }
+  .lv-toggle button.on{ background:#fff; color:#06283a; }
+  .lv-controls{ display:flex; align-items:center; justify-content:center; gap:40px; padding:0 0 8px; }
+  .lv-photo{ width:56px; height:56px; border-radius:50%; border:2px solid #fff; background:rgba(255,255,255,.15); backdrop-filter:blur(8px); cursor:pointer; }
+  .lv-rec-btn{ width:78px; height:78px; border-radius:50%; border:5px solid #fff; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .lv-rec-btn i{ width:30px; height:30px; border-radius:8px; background:#ff4d4d; transition:.2s; }
+  .lv-side{ width:56px; height:56px; border-radius:50%; border:1px solid var(--stroke); background:rgba(0,0,0,.4); backdrop-filter:blur(8px); color:#fff; font-size:11px; font-weight:700; cursor:pointer; }
+
+  /* ===== DIVE LOG ===== */
+  #view-log{ background:linear-gradient(180deg,#06303f,#04222f); overflow-y:auto; color:#fff; }
+  .log-wrap{ padding:52px 20px 96px; }
+  .log-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:4px; }
+  .log-h h2{ font-size:24px; font-weight:800; }
+  .log-h span{ font-size:14px; opacity:.7; }
+  .log-loc{ font-size:13px; opacity:.75; margin-bottom:18px; }
+  .log-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px; }
+  .log-stat{ background:var(--glass); border:1px solid var(--stroke); border-radius:18px; padding:16px 10px; text-align:center; }
+  .log-stat .sv{ font-size:22px; font-weight:800; } .log-stat .su{ font-size:12px; font-weight:600; opacity:.6; }
+  .log-stat .sl{ font-size:12px; opacity:.7; margin-top:6px; }
+  .log-sec{ display:flex; align-items:center; justify-content:space-between; margin:0 0 12px; }
+  .log-sec h3{ font-size:16px; font-weight:700; } .log-sec a{ font-size:13px; opacity:.7; }
+  .log-row{ display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:22px; }
+  .log-row::-webkit-scrollbar{ display:none; }
+  .log-thumb{ position:relative; flex:none; width:118px; height:118px; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.12); }
+  .log-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .log-thumb.vid .tp{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:34px; height:34px; border-radius:50%; background:rgba(255,255,255,.9); display:flex; align-items:center; justify-content:center; }
+  .log-thumb.vid .tp::before{ content:''; border-left:10px solid #06283a; border-top:6px solid transparent; border-bottom:6px solid transparent; margin-left:2px; }
+  .log-thumb .dur{ position:absolute; bottom:6px; right:6px; font-size:10px; font-weight:700; background:rgba(3,26,40,.7); padding:2px 6px; border-radius:7px; }
+
+  /* ===== DEVICE (plant-app style, light) ===== */
+  #view-device{ background:linear-gradient(160deg,#eef3f7 0%,#dbe7f0 55%,#cADAe6 100%); background:linear-gradient(160deg,#eef3f7 0%,#dce7ef 55%,#cfdEe9 100%); color:#1e2b33; overflow:hidden; }
+  .dv{ position:relative; flex:1; display:flex; flex-direction:column; padding:46px 22px 90px; }
+  .dv-img{ position:absolute; right:-46px; top:104px; width:340px; max-width:82%; z-index:1; filter:drop-shadow(0 26px 40px rgba(40,70,90,.28)); pointer-events:none; }
+  .dv-glow{ position:absolute; right:-20px; top:184px; width:320px; height:320px; border-radius:50%; z-index:0; background:radial-gradient(circle, rgba(255,255,255,.9), rgba(255,255,255,0) 70%); }
+  .dv-top{ display:flex; align-items:center; justify-content:space-between; position:relative; z-index:3; }
+  .dv-online{ display:flex; align-items:center; gap:7px; background:var(--green); color:#fff; font-size:13px; font-weight:700; padding:9px 16px; border-radius:22px; box-shadow:0 6px 16px rgba(24,194,104,.35); }
+  .dv-online b{ width:8px; height:8px; border-radius:50%; background:#fff; }
+  .dv-title{ position:relative; z-index:3; margin-top:22px; }
+  .dv-title h2{ font-size:30px; font-weight:800; letter-spacing:-.5px; }
+  .dv-title p{ font-size:14px; color:#7c93a1; margin-top:2px; }
+  .dv-specs{ position:relative; z-index:3; margin-top:26px; max-width:56%; }
+  .dv-spec{ margin-bottom:16px; }
+  .dv-spec .k{ font-size:12px; color:#9aabb6; font-weight:500; }
+  .dv-spec .v{ font-size:18px; font-weight:700; margin-top:1px; }
+  .dv-spec .v small{ font-size:12px; font-weight:600; color:var(--green); margin-left:6px; }
+  .dv-spec .v.warn small{ color:#e8892b; }
+  .dv-more{ position:relative; z-index:3; margin-top:6px; font-size:15px; font-weight:700; color:#1e2b33; text-decoration:none; border-bottom:2px solid var(--green); padding-bottom:3px; align-self:flex-start; }
+  .dv-actions{ position:relative; z-index:3; margin-top:auto; display:flex; gap:12px; align-items:center; }
+  .dv-diag{ display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; color:#1e2b33; background:none; border:none; cursor:pointer; }
+  .dv-diag .dot{ width:8px; height:8px; border-radius:50%; background:#1e2b33; }
+  .dv-next{ flex:1; max-width:180px; margin-left:auto; padding:17px; border:none; border-radius:22px; background:#12222b; color:#fff; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 10px 24px rgba(18,34,43,.3); }
+
+  /* ---------- shared bottom tabs ---------- */
+  .tabs{ position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-around; align-items:center; padding:16px 18px 26px; z-index:12; }
+  .tabs a{ font-size:15px; font-weight:600; color:rgba(255,255,255,.5); text-decoration:none; letter-spacing:.3px; position:relative; padding:4px 2px; cursor:pointer; }
+  .tabs a.on{ color:#fff; }
+  .tabs a.on::after{ content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px rgba(58,208,200,.9); }
+  .phone.light .tabs a{ color:#93a6b2; }
+  .phone.light .tabs a.on{ color:#12222b; }
+  .phone.light .tabs a.on::after{ background:var(--green); box-shadow:0 0 8px rgba(24,194,104,.7); }
+
+  /* ---------- zone video page (overlay) ---------- */
+  .videopage{ position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; background:#04222f; color:#fff; transform:translateX(100%); transition:transform .32s cubic-bezier(.4,0,.2,1); }
+  .videopage.open{ transform:translateX(0); }
+  .vp-head{ display:flex; align-items:center; gap:12px; padding:16px 18px 12px; }
+  .vp-back{ width:42px; height:42px; border-radius:50%; border:1px solid var(--stroke); background:var(--glass); backdrop-filter:blur(14px); color:#fff; font-size:22px; cursor:pointer; flex:none; }
+  .vp-title{ font-size:19px; font-weight:800; } .vp-sub{ font-size:12.5px; opacity:.7; margin-top:1px; }
+  .vp-chip{ margin-left:auto; font-size:12px; font-weight:700; padding:6px 12px; border-radius:14px; background:var(--glass-strong); border:1px solid var(--stroke); }
+  .vp-player{ position:relative; margin:4px 16px 0; border-radius:22px; overflow:hidden; aspect-ratio:16/10; background:#031a26; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+  .vp-player video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .vp-live{ position:absolute; top:12px; left:12px; display:flex; align-items:center; gap:6px; font-size:11px; font-weight:800; letter-spacing:.5px; padding:5px 10px; border-radius:12px; background:rgba(3,26,40,.55); backdrop-filter:blur(8px); }
+  .vp-live b{ width:7px; height:7px; border-radius:50%; background:#ff5a5a; box-shadow:0 0 8px #ff5a5a; }
+  .vp-time{ position:absolute; bottom:12px; right:12px; font-size:12px; font-weight:700; padding:4px 9px; border-radius:10px; background:rgba(3,26,40,.55); backdrop-filter:blur(8px); }
+  .vp-tags{ display:flex; gap:8px; flex-wrap:wrap; padding:14px 18px 4px; }
+  .vp-tags .tag{ font-size:12px; font-weight:600; padding:6px 12px; border-radius:14px; background:var(--glass); border:1px solid var(--stroke); }
+  .vp-tags .tag.warn{ background:rgba(255,120,90,.22); border-color:rgba(255,140,110,.5); }
+  .vp-secttl{ font-size:14px; font-weight:700; padding:16px 18px 10px; opacity:.9; }
+  .vp-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:0 16px 24px; overflow-y:auto; }
+  .clip{ position:relative; border-radius:16px; overflow:hidden; aspect-ratio:1/1; cursor:pointer; background:#0a2c3a; border:1px solid rgba(255,255,255,.12); }
+  .clip img{ width:100%; height:100%; object-fit:cover; opacity:.9; }
+  .clip .dur{ position:absolute; bottom:8px; right:8px; font-size:11px; font-weight:700; padding:3px 8px; border-radius:9px; background:rgba(3,26,40,.7); }
+  .clip .cplay{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.9); display:flex; align-items:center; justify-content:center; }
+  .clip .cplay::before{ content:''; border-left:11px solid #06283a; border-top:7px solid transparent; border-bottom:7px solid transparent; margin-left:2px; }
+</style>
+</head>
+<body>
+  <div class="phone" id="phone">
+    <div class="screen">
+      <!-- shared status bar -->
+      <div class="statusbar">
+        <span>11:30</span>
+        <div class="sysicons">
+          <div class="bars"><span></span><span></span><span></span><span></span></div>
+          <div class="batt"><i></i></div>
+        </div>
+      </div>
+
+      <div class="views">
+        <!-- ===================== HOME ===================== -->
+        <section class="view on" id="view-home">
+          <div class="bg-fallback"></div>
+          <img class="bg-img" src="assets/map-bg.png" alt="dive course map">
+          <div class="grade"></div>
+          <div class="particles" id="particles"></div>
+
+          <div class="home-inner">
+            <div class="topbar">
+              <div>
+                <div class="appname">SeaOasis</div>
+                <div class="subinfo">
+                  <span class="loc">제주 · 서귀포</span><span class="sep">|</span><span>맑음</span><span class="temp">24°C</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="route">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path class="path-bg" d="M20,24 C33,31 40,40 46,50 C52,60 46,67 56,71 C66,75 72,64 74,52 C76,42 80,40 86,33"/>
+                <path class="path"    d="M20,24 C33,31 40,40 46,50 C52,60 46,67 56,71 C66,75 72,64 74,52 C76,42 80,40 86,33"/>
+              </svg>
+              <div class="marker start" style="left:20%; top:24%"></div>
+              <div class="marker end"   style="left:86%; top:33%"></div>
+              <button class="bubble zone" style="left:35%; top:37%" data-zone="북쪽 암초" data-depth="-8 m" data-count="12"><span class="play"></span>-8 m</button>
+              <button class="bubble zone" style="left:55%; top:70%" data-zone="중앙 수로" data-depth="-15 m" data-count="9"><span class="play"></span>-15 m</button>
+              <button class="bubble zone" style="left:76%; top:52%" data-zone="동쪽 절벽" data-depth="-18 m" data-count="7"><span class="play"></span>-18 m</button>
+              <div class="route-hint" id="routeHint">구역을 탭하면 촬영 영상을 볼 수 있어요</div>
+            </div>
+
+            <div class="infobox">
+              <div class="ib-handle"></div>
+              <div class="ib-title"><img class="ib-product" src="assets/seabuddy-product.png" alt="Sea-Buddy"> Sea-Buddy <i>•</i> 연결됨</div>
+              <div class="ib-grid">
+                <div class="k">배터리</div><div class="k">저장공간</div><div class="k dim">현재 모드</div>
+                <div class="v">86 %</div><div class="v">42 GB</div><div class="v dim">Dive</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== LIVE ===================== -->
+        <section class="view" id="view-live">
+          <video src="assets/ocean.mp4" poster="assets/ocean-bg.png" muted loop playsinline></video>
+          <div class="lv-grade"></div>
+          <div class="lv">
+            <div class="lv-top">
+              <div class="lv-rec"><b></b> REC 00:12</div>
+              <div class="lv-depth">-14 m · 21°C</div>
+            </div>
+            <div class="lv-alert"><span class="d"></span> AI 인식 · 흰동가리 발견</div>
+            <div class="lv-spacer"></div>
+            <div class="lv-followrow">
+              <div class="lv-toggle">
+                <button class="on" id="followBtn">Follow</button>
+                <button id="returnBtn">Return</button>
+              </div>
+            </div>
+            <div class="lv-controls">
+              <button class="lv-photo" title="사진 촬영"></button>
+              <button class="lv-rec-btn" id="recBtn"><i></i></button>
+              <div class="lv-photo" style="visibility:hidden"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== DIVE LOG ===================== -->
+        <section class="view" id="view-log">
+          <div class="log-wrap">
+            <div class="log-h"><h2>오늘 다이빙</h2><span>7월 1일</span></div>
+            <div class="log-loc">문섬 · 제주 서귀포</div>
+
+            <div class="log-stats">
+              <div class="log-stat"><div class="sv">420<span class="su"> m</span></div><div class="sl">이동 거리</div></div>
+              <div class="log-stat"><div class="sv">18<span class="su"> m</span></div><div class="sl">최대 수심</div></div>
+              <div class="log-stat"><div class="sv">32<span class="su"> 분</span></div><div class="sl">다이빙 시간</div></div>
+            </div>
+
+            <div class="log-sec"><h3>촬영한 사진</h3><a>28장 전체보기</a></div>
+            <div class="log-row" id="photoRow"></div>
+
+            <div class="log-sec"><h3>영상</h3><a>9개 전체보기</a></div>
+            <div class="log-row" id="videoRow"></div>
+          </div>
+        </section>
+
+        <!-- ===================== DEVICE ===================== -->
+        <section class="view" id="view-device">
+          <div class="dv">
+            <div class="dv-glow"></div>
+            <img class="dv-img" id="dvImg" src="assets/device.png" alt="Sea-Buddy device">
+            <div class="dv-top">
+              <div></div>
+              <div class="dv-online"><b></b> 온라인</div>
+            </div>
+            <div class="dv-title">
+              <h2>Sea-Buddy</h2>
+              <p>Underwater Drone</p>
+            </div>
+            <div class="dv-specs">
+              <div class="dv-spec"><div class="k">펌웨어 업데이트</div><div class="v">v2.4.1 <small>최신</small></div></div>
+              <div class="dv-spec"><div class="k">센서 상태</div><div class="v">정상 <small>4/4</small></div></div>
+              <div class="dv-spec"><div class="k">배터리 상태</div><div class="v">86 % <small>양호</small></div></div>
+              <div class="dv-spec"><div class="k">캘리브레이션</div><div class="v warn">권장 <small>7일 전</small></div></div>
+            </div>
+            <a class="dv-more" href="#">자세히 보기</a>
+            <div class="dv-actions">
+              <button class="dv-diag"><span class="dot"></span> 진단하기</button>
+              <button class="dv-next">캘리브레이션</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- shared bottom tabs -->
+      <nav class="tabs" id="tabs">
+        <a class="on" data-view="home">Home</a>
+        <a data-view="live">Live</a>
+        <a data-view="log">Dive Log</a>
+        <a data-view="device">Device</a>
+      </nav>
+    </div>
+
+    <!-- zone video page -->
+    <div class="videopage" id="videopage">
+      <div class="vp-head">
+        <button class="vp-back" id="vpBack">‹</button>
+        <div>
+          <div class="vp-title" id="vpTitle">북쪽 암초</div>
+          <div class="vp-sub">제주 · 서귀포 · 문섬</div>
+        </div>
+        <div class="vp-chip" id="vpDepth">-8 m</div>
+      </div>
+      <div class="vp-player">
+        <video id="vpVideo" src="assets/ocean.mp4" poster="assets/ocean-bg.png" autoplay muted loop playsinline></video>
+        <div class="vp-live"><b></b> REC</div>
+        <div class="vp-time">02:14</div>
+      </div>
+      <div class="vp-tags">
+        <span class="tag">AI 인식 · 흰동가리</span>
+        <span class="tag">성게 군락</span>
+        <span class="tag warn">⚠ 강한 조류</span>
+      </div>
+      <div class="vp-secttl">촬영한 영상 <span id="vpCount">12</span>개</div>
+      <div class="vp-grid" id="vpGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    // scattered dots (home)
+    const p = document.getElementById('particles');
+    [[30,30],[62,26],[78,40],[44,58],[68,62],[24,52],[82,68],[38,44],[56,48],[72,34]]
+      .forEach(([x,y])=>{ const s=document.createElement('i'); s.style.left=x+'%'; s.style.top=y+'%'; s.style.opacity=(.25+Math.random()*.4).toFixed(2); p.appendChild(s); });
+
+    // hint toast
+    const hint = document.getElementById('routeHint');
+    setTimeout(()=>hint.classList.add('hide'),3000);
+    setTimeout(()=>{ hint.style.display='none'; },3700);
+
+    // ---- tab navigation ----
+    const phone = document.getElementById('phone');
+    const liveVideo = document.querySelector('#view-live video');
+    function showView(name){
+      document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.id==='view-'+name));
+      document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on', a.dataset.view===name));
+      phone.classList.toggle('light', name==='device');
+      if(name==='live'){ liveVideo.play().catch(()=>{}); } else { liveVideo.pause(); }
+    }
+    document.querySelectorAll('#tabs a').forEach(a=>a.addEventListener('click',()=>showView(a.dataset.view)));
+
+    // ---- dive log thumbnails ----
+    const durs=['0:42','1:15','0:58','2:03','1:37','0:24','1:52','0:33'];
+    const photoRow=document.getElementById('photoRow'), videoRow=document.getElementById('videoRow');
+    for(let i=0;i<8;i++){ const d=document.createElement('div'); d.className='log-thumb'; d.innerHTML='<img src="assets/ocean-bg.png" alt="">'; photoRow.appendChild(d); }
+    for(let i=0;i<6;i++){ const d=document.createElement('div'); d.className='log-thumb vid'; d.innerHTML='<img src="assets/ocean-bg.png" alt=""><div class="tp"></div><div class="dur">'+durs[i%durs.length]+'</div>'; videoRow.appendChild(d); }
+
+    // ---- live record toggle ----
+    const recBtn=document.getElementById('recBtn'), recIcon=recBtn.querySelector('i');
+    let recording=true;
+    recBtn.addEventListener('click',()=>{ recording=!recording; recIcon.style.borderRadius=recording?'8px':'50%'; recIcon.style.width=recording?'30px':'26px'; recIcon.style.height=recording?'30px':'26px'; });
+    const fb=document.getElementById('followBtn'), rb=document.getElementById('returnBtn');
+    fb.addEventListener('click',()=>{ fb.classList.add('on'); rb.classList.remove('on'); });
+    rb.addEventListener('click',()=>{ rb.classList.add('on'); fb.classList.remove('on'); });
+
+    // ---- zone video page ----
+    const page=document.getElementById('videopage'), vpTitle=document.getElementById('vpTitle'),
+          vpDepth=document.getElementById('vpDepth'), vpCount=document.getElementById('vpCount'),
+          vpGrid=document.getElementById('vpGrid'), vpVideo=document.getElementById('vpVideo');
+    document.querySelectorAll('.zone').forEach(z=>z.addEventListener('click',()=>{
+      const n=parseInt(z.dataset.count)||8;
+      vpTitle.textContent=z.dataset.zone; vpDepth.textContent=z.dataset.depth; vpCount.textContent=n;
+      vpGrid.innerHTML='';
+      for(let i=0;i<n;i++){ const c=document.createElement('div'); c.className='clip'; c.innerHTML='<img src="assets/ocean-bg.png" alt=""><div class="cplay"></div><div class="dur">'+durs[i%durs.length]+'</div>'; vpGrid.appendChild(c); }
+      page.classList.add('open'); vpVideo.play().catch(()=>{});
+    }));
+    document.getElementById('vpBack').addEventListener('click',()=>{ page.classList.remove('open'); vpVideo.pause(); });
+  </script>
+</body>
+</html>

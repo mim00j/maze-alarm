@@ -112,17 +112,43 @@
   /* ===== DIVE LOG ===== */
   #view-log{ background:linear-gradient(180deg,#06303f,#04222f); overflow-y:auto; color:#fff; }
   .log-wrap{ padding:52px 20px 96px; }
-  .log-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:4px; }
+  .log-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
   .log-h h2{ font-size:24px; font-weight:800; }
   .log-h span{ font-size:14px; opacity:.7; }
-  .log-loc{ font-size:13px; opacity:.75; margin-bottom:18px; }
-  .log-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:24px; }
+  .log-loc{ display:flex; align-items:center; gap:5px; font-size:13px; opacity:.8; margin-bottom:20px; }
+  .log-loc .pin{ font-size:13px; }
+
+  /* calendar strip */
+  .cal{ margin-bottom:4px; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding:0 2px; }
+  .cal-month{ font-size:16px; font-weight:700; letter-spacing:.6px; }
+  .cal-nav{ width:34px; height:34px; border-radius:50%; border:1px solid var(--stroke); background:var(--glass); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:#fff; font-size:18px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cal-nav:active{ background:var(--glass-strong); }
+  .cal-week{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .cal-day{ display:flex; flex-direction:column; align-items:center; gap:7px; padding:6px 0 8px; border-radius:16px; cursor:pointer; }
+  .cal-day .wd{ font-size:11px; font-weight:600; opacity:.5; }
+  .cal-day .dn{ font-size:15.5px; font-weight:700; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background .15s; }
+  .cal-day .dot{ width:5px; height:5px; border-radius:50%; background:transparent; }
+  .cal-day .dot.dive{ background:var(--accent); box-shadow:0 0 6px rgba(58,208,200,.7); }
+  .cal-day.sun .wd,.cal-day.sun .dn{ color:#ff8a8a; }
+  .cal-day.sat .wd,.cal-day.sat .dn{ color:#8ab8ff; }
+  .cal-day.on .dn{ background:var(--accent); color:#06283a; }
+  .cal-day.on .wd{ opacity:.95; color:#fff; }
+  .cal-day.on .dot.dive{ background:#fff; box-shadow:0 0 6px rgba(255,255,255,.7); }
+
+  .log-div{ height:1px; background:rgba(255,255,255,.13); margin:20px 0; }
+  .log-empty{ text-align:center; padding:54px 20px; }
+  .log-empty .le-ic{ font-size:42px; margin-bottom:14px; opacity:.9; }
+  .log-empty .le-t{ font-size:16px; font-weight:700; margin-bottom:7px; }
+  .log-empty .le-s{ font-size:13px; opacity:.55; line-height:1.5; }
+
+  .log-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
   .log-stat{ background:var(--glass); border:1px solid var(--stroke); border-radius:18px; padding:16px 10px; text-align:center; }
   .log-stat .sv{ font-size:22px; font-weight:800; } .log-stat .su{ font-size:12px; font-weight:600; opacity:.6; }
   .log-stat .sl{ font-size:12px; opacity:.7; margin-top:6px; }
-  .log-sec{ display:flex; align-items:center; justify-content:space-between; margin:0 0 12px; }
+  .log-sec{ display:flex; align-items:center; justify-content:space-between; margin:0 0 14px; }
   .log-sec h3{ font-size:16px; font-weight:700; } .log-sec a{ font-size:13px; opacity:.7; }
-  .log-row{ display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:22px; }
+  .log-row{ display:flex; gap:12px; overflow-x:auto; padding-bottom:4px; }
   .log-row::-webkit-scrollbar{ display:none; }
   .log-thumb{ position:relative; flex:none; width:118px; height:118px; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,.12); }
   .log-thumb img{ width:100%; height:100%; object-fit:cover; }
@@ -268,20 +294,43 @@
         <!-- ===================== DIVE LOG ===================== -->
         <section class="view" id="view-log">
           <div class="log-wrap">
-            <div class="log-h"><h2>오늘 다이빙</h2><span>7월 1일</span></div>
-            <div class="log-loc">문섬 · 제주 서귀포</div>
+            <div class="log-h"><h2>최근 다이빙</h2></div>
+            <div class="log-loc"><span class="pin">📍</span> <span id="logLoc">문섬 · 제주 서귀포</span></div>
 
-            <div class="log-stats">
-              <div class="log-stat"><div class="sv">420<span class="su"> m</span></div><div class="sl">이동 거리</div></div>
-              <div class="log-stat"><div class="sv">18<span class="su"> m</span></div><div class="sl">최대 수심</div></div>
-              <div class="log-stat"><div class="sv">32<span class="su"> 분</span></div><div class="sl">다이빙 시간</div></div>
+            <div class="cal">
+              <div class="cal-head">
+                <button class="cal-nav" id="calPrev">‹</button>
+                <div class="cal-month" id="calMonth">2025.07</div>
+                <button class="cal-nav" id="calNext">›</button>
+              </div>
+              <div class="cal-week" id="calWeek"></div>
             </div>
 
-            <div class="log-sec"><h3>촬영한 사진</h3><a>28장 전체보기</a></div>
-            <div class="log-row" id="photoRow"></div>
+            <div class="log-div"></div>
 
-            <div class="log-sec"><h3>영상</h3><a>9개 전체보기</a></div>
-            <div class="log-row" id="videoRow"></div>
+            <div id="logDetail">
+              <div class="log-stats">
+                <div class="log-stat"><div class="sv"><span id="statDist">420</span><span class="su"> m</span></div><div class="sl">이동 거리</div></div>
+                <div class="log-stat"><div class="sv"><span id="statDepth">18</span><span class="su"> m</span></div><div class="sl">최대 수심</div></div>
+                <div class="log-stat"><div class="sv"><span id="statTime">32</span><span class="su"> 분</span></div><div class="sl">다이빙 시간</div></div>
+              </div>
+
+              <div class="log-div"></div>
+
+              <div class="log-sec"><h3>촬영한 사진</h3><a id="photoCount">28장 전체보기</a></div>
+              <div class="log-row" id="photoRow"></div>
+
+              <div class="log-div"></div>
+
+              <div class="log-sec"><h3>영상</h3><a id="videoCount">9개 전체보기</a></div>
+              <div class="log-row" id="videoRow"></div>
+            </div>
+
+            <div id="logEmpty" class="log-empty" style="display:none">
+              <div class="le-ic">🌊</div>
+              <div class="le-t">이 날은 다이빙 기록이 없어요</div>
+              <div class="le-s">달력에서 다이빙한 날(<span style="color:var(--accent)">●</span>)을 선택해 보세요</div>
+            </div>
           </div>
         </section>
 
@@ -388,11 +437,53 @@
     }
     document.querySelectorAll('#tabs a').forEach(a=>a.addEventListener('click',()=>showView(a.dataset.view)));
 
-    // ---- dive log thumbnails ----
+    // ---- dive log calendar strip ----
+    const calDays=[
+      {d:28, wd:'토', cls:'sat'},
+      {d:29, wd:'일', cls:'sun', dive:true},
+      {d:30, wd:'월'},
+      {d:1,  wd:'화', dive:true, sel:true},
+      {d:2,  wd:'수'},
+      {d:3,  wd:'목'},
+      {d:4,  wd:'금'}
+    ];
+    const calWeek=document.getElementById('calWeek');
+    calDays.forEach(o=>{
+      const el=document.createElement('div');
+      el.className='cal-day'+(o.cls?' '+o.cls:'')+(o.sel?' on':'');
+      el.innerHTML='<span class="wd">'+o.wd+'</span><span class="dn">'+o.d+'</span><span class="dot'+(o.dive?' dive':'')+'"></span>';
+      el.addEventListener('click',()=>{ calWeek.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('on')); el.classList.add('on'); updateLog(o.d); });
+      calWeek.appendChild(el);
+    });
+
+    // ---- dive log: per-day data + render ----
     const durs=['0:42','1:15','0:58','2:03','1:37','0:24','1:52','0:33'];
-    const photoRow=document.getElementById('photoRow'), videoRow=document.getElementById('videoRow');
-    for(let i=0;i<8;i++){ const d=document.createElement('div'); d.className='log-thumb'; d.innerHTML='<img src="assets/ocean-bg.png" alt="">'; photoRow.appendChild(d); }
-    for(let i=0;i<6;i++){ const d=document.createElement('div'); d.className='log-thumb vid'; d.innerHTML='<img src="assets/ocean-bg.png" alt=""><div class="tp"></div><div class="dur">'+durs[i%durs.length]+'</div>'; videoRow.appendChild(d); }
+    const diveData={
+      29:{ loc:'섶섬 · 제주 서귀포', dist:310, depth:15, time:26, photos:19, videos:6 },
+      1 :{ loc:'문섬 · 제주 서귀포', dist:420, depth:18, time:32, photos:28, videos:9 }
+    };
+    const logLoc=document.getElementById('logLoc'), logDetail=document.getElementById('logDetail'), logEmpty=document.getElementById('logEmpty'),
+          statDist=document.getElementById('statDist'), statDepth=document.getElementById('statDepth'), statTime=document.getElementById('statTime'),
+          photoCount=document.getElementById('photoCount'), videoCount=document.getElementById('videoCount'),
+          photoRow=document.getElementById('photoRow'), videoRow=document.getElementById('videoRow');
+    function fillRow(row,n,vid){
+      row.innerHTML='';
+      for(let i=0;i<Math.min(n,10);i++){ const d=document.createElement('div');
+        if(vid){ d.className='log-thumb vid'; d.innerHTML='<img src="assets/ocean-bg.png" alt=""><div class="tp"></div><div class="dur">'+durs[i%durs.length]+'</div>'; }
+        else { d.className='log-thumb'; d.innerHTML='<img src="assets/ocean-bg.png" alt="">'; }
+        row.appendChild(d);
+      }
+    }
+    function updateLog(day){
+      const info=diveData[day];
+      if(!info){ logDetail.style.display='none'; logEmpty.style.display='block'; return; }
+      logDetail.style.display='block'; logEmpty.style.display='none';
+      logLoc.textContent=info.loc;
+      statDist.textContent=info.dist; statDepth.textContent=info.depth; statTime.textContent=info.time;
+      photoCount.textContent=info.photos+'장 전체보기'; videoCount.textContent=info.videos+'개 전체보기';
+      fillRow(photoRow,info.photos,false); fillRow(videoRow,info.videos,true);
+    }
+    updateLog(1);
 
     // ---- live record toggle ----
     const recBtn=document.getElementById('recBtn'), recIcon=recBtn.querySelector('i');

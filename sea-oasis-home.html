@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeaOasis</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  button, input, textarea, select { font-family:inherit; font-size:100%; }
+  :root{
+    --aqua:#1fd7cf; --aqua-deep:#0b93a6; --sky:#38bdf8; --ink:#052b38; --white:#fff;
+    --glass:rgba(255,255,255,.16); --stroke:rgba(255,255,255,.34);
+    font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,'Apple SD Gothic Neo',Roboto,sans-serif;
+  }
+  html,body{ height:100%; }
+  body{ display:flex; align-items:center; justify-content:center; background:#04222f; overflow:hidden; }
+  .phone{ position:relative; flex:none; width:390px; height:844px; transform-origin:center center; overflow:hidden; background:#0a3a44; border-radius:30px; box-shadow:0 22px 70px rgba(0,0,0,.45); }
+  .phone.full{ border-radius:0; box-shadow:none; }
+
+  .statusbar{ position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:15px 26px 4px; font-size:15px; font-weight:600; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.35); z-index:20; }
+  .phone.light .statusbar{ color:#0b2b3a; text-shadow:none; }
+  .sysicons{ display:flex; gap:6px; align-items:center; }
+  .bars{ display:flex; align-items:flex-end; gap:2px; height:12px; }
+  .bars span{ width:3px; background:currentColor; border-radius:1px; }
+  .bars span:nth-child(1){height:5px} .bars span:nth-child(2){height:8px} .bars span:nth-child(3){height:11px} .bars span:nth-child(4){height:13px}
+  .batt{ width:24px; height:12px; border:1.6px solid currentColor; border-radius:3px; position:relative; }
+  .batt::after{ content:''; position:absolute; right:-4px; top:3px; width:2px; height:5px; background:currentColor; border-radius:0 2px 2px 0; }
+  .batt i{ position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:72%; background:currentColor; border-radius:1px; }
+
+  .view{ position:absolute; inset:0; display:none; }
+  .view.on{ display:block; }
+  .scroll::-webkit-scrollbar{ display:none; }
+  .wavebg{ position:absolute; inset:0; z-index:0; pointer-events:none; }
+  .wavebg svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  /* ================= HOME ================= */
+  .mapstage{ position:absolute; inset:0; z-index:0; transform-origin:center center; transition:transform .28s cubic-bezier(.4,0,.2,1); will-change:transform; }
+  .mapstage .map{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .mapstage .map-fallback{ position:absolute; inset:0; background:radial-gradient(130% 90% at 50% 42%, #9ff2ec 0%, #45d8d0 26%, #14b4c0 50%, #0a7f97 74%, #075873 100%); }
+  .routesvg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+  .rpath-bg{ fill:none; stroke:rgba(5,43,56,.4); stroke-width:9; stroke-linecap:round; vector-effect:non-scaling-stroke; }
+  .rpath{ fill:none; stroke:#fff; stroke-width:3.5; stroke-linecap:round; stroke-dasharray:1.5 8; vector-effect:non-scaling-stroke; filter:drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+  .gpath{ fill:none; stroke:rgba(255,255,255,.55); stroke-width:2.5; stroke-linecap:round; stroke-dasharray:2 6; vector-effect:non-scaling-stroke; opacity:0; transition:opacity .25s; }
+  .gpath.show{ opacity:1; }
+  .cpath{ fill:none; stroke:var(--aqua); stroke-width:3.5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:2 7; vector-effect:non-scaling-stroke; filter:drop-shadow(0 1px 4px rgba(0,0,0,.4)); }
+  .marker{ position:absolute; transform:translate(-50%,-50%); z-index:4; }
+  .marker.start,.marker.end{ width:20px; height:20px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.5); }
+  .marker.start{ background:#06222c; } .marker.end{ background:var(--aqua); }
+  .bubble{ position:absolute; transform:translate(-50%,-50%); z-index:5; cursor:pointer; display:flex; align-items:center; gap:6px; background:#fff; color:#06283a; font-size:12px; font-weight:700; padding:5px 11px 5px 7px; border:none; border-radius:20px; white-space:nowrap; box-shadow:0 4px 13px rgba(0,0,0,.28); }
+  .bubble .play{ width:16px; height:16px; border-radius:50%; background:var(--aqua); display:flex; align-items:center; justify-content:center; flex:none; }
+  .bubble .play::before{ content:''; border-left:5px solid #06283a; border-top:3.5px solid transparent; border-bottom:3.5px solid transparent; margin-left:1px; }
+  .layer{ transition:opacity .25s; } .layer.hide{ opacity:0; pointer-events:none; }
+  .ghost-dot{ position:absolute; transform:translate(-50%,-50%); z-index:4; display:flex; align-items:center; gap:5px; background:rgba(5,43,56,.5); color:#dffcfa; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:13px; border:1px dashed rgba(255,255,255,.55); white-space:nowrap; }
+  .ghost-dot .st{ color:var(--aqua); }
+  .cpoint{ position:absolute; transform:translate(-50%,-50%); z-index:6; width:24px; height:24px; border-radius:50%; background:var(--aqua); color:#06283a; border:2.5px solid #fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 9px rgba(0,0,0,.4); }
+  .grade{ position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(180deg, rgba(4,34,47,.5) 0%, rgba(4,34,47,.06) 16%, rgba(4,34,47,0) 42%, rgba(4,34,47,.14) 62%, rgba(4,34,47,.72) 100%); }
+
+  .home-inner{ position:absolute; inset:0; z-index:3; display:flex; flex-direction:column; padding:46px 0 92px; pointer-events:none; }
+  .home-inner > *{ pointer-events:auto; }
+  .spacer{ flex:1; pointer-events:none; }
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; padding:6px 22px 0; }
+  .title{ font-size:26px; font-weight:800; letter-spacing:.4px; color:#fff; text-shadow:0 2px 10px rgba(0,0,0,.45); }
+  .subinfo{ display:flex; align-items:center; gap:7px; margin-top:6px; font-size:13px; font-weight:500; color:#eafcfb; text-shadow:0 1px 5px rgba(0,0,0,.5); }
+  .subinfo .sep{ opacity:.5; } .subinfo b{ font-weight:700; }
+
+  .route-hint{ align-self:center; margin:0 0 10px; white-space:nowrap; font-size:11.5px; font-weight:500; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.5); background:rgba(5,43,56,.5); padding:6px 15px; border-radius:16px; backdrop-filter:blur(8px); transition:opacity .5s; }
+  .route-hint.hide{ opacity:0; }
+
+  .card{ margin:0 14px; padding:0 20px 18px; border-radius:26px; background:linear-gradient(180deg, rgba(58,224,214,.24), rgba(6,64,80,.5)); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); border:1px solid var(--stroke); box-shadow:0 -6px 30px rgba(0,0,0,.28); color:#fff; transition:transform .32s cubic-bezier(.4,0,.2,1); }
+  .sheet-grab{ display:block; width:100%; padding:12px 0 10px; cursor:grab; touch-action:none; }
+  .sheet-grab:active{ cursor:grabbing; }
+  .sheet-grab .handle{ width:40px; height:5px; border-radius:3px; background:rgba(255,255,255,.55); margin:0 auto; }
+  .modeToggle{ display:flex; gap:4px; margin:0 auto 14px; padding:4px; border-radius:20px; width:max-content; background:rgba(5,43,56,.42); border:1px solid var(--stroke); }
+  .modeToggle button{ border:none; background:transparent; color:rgba(255,255,255,.75); font-size:13px; font-weight:700; padding:8px 20px; border-radius:16px; cursor:pointer; }
+  .modeToggle button.on{ background:#fff; color:#06283a; }
+  .pane{ display:none; } .pane.on{ display:block; }
+  .card-h{ display:flex; align-items:center; gap:8px; font-size:16px; font-weight:800; margin-bottom:14px; }
+  .card-h .chip{ margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; padding:5px 11px; border-radius:13px; background:rgba(255,255,255,.16); border:1px solid var(--stroke); }
+  .card-h .chip b{ width:7px; height:7px; border-radius:50%; background:var(--aqua); box-shadow:0 0 7px var(--aqua); }
+  .stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:16px; }
+  .stats .sk{ font-size:12px; opacity:.72; font-weight:500; } .stats .sv{ font-size:19px; font-weight:800; margin-top:3px; }
+  .cta{ width:100%; padding:15px; border:none; border-radius:18px; background:#fff; color:#06283a; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 8px 20px rgba(0,0,0,.22); }
+  .cta:disabled{ opacity:.45; }
+  .ctext{ font-size:13px; opacity:.85; margin-bottom:14px; }
+  .cbtns{ display:flex; gap:10px; } .cbtns button{ flex:1; padding:14px; border-radius:16px; font-size:14px; font-weight:700; cursor:pointer; }
+  .cbtns .ghost{ background:rgba(255,255,255,.14); border:1px solid var(--stroke); color:#fff; } .cbtns .ghost:disabled{ opacity:.4; }
+  .saved{ margin-bottom:14px; }
+  .saved-tabs{ display:flex; gap:18px; margin-bottom:10px; }
+  .saved-tabs button{ background:none; border:none; color:rgba(255,255,255,.5); font-size:13px; font-weight:700; cursor:pointer; padding:0 0 5px; position:relative; }
+  .saved-tabs button.on{ color:#fff; }
+  .saved-tabs button.on::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:2px; border-radius:2px; background:var(--aqua); }
+  .saved-row{ display:flex; gap:9px; overflow-x:auto; padding-bottom:4px; }
+  .saved-row::-webkit-scrollbar{ display:none; }
+  .rchip{ flex:none; width:136px; text-align:left; background:rgba(255,255,255,.12); border:1px solid var(--stroke); border-radius:14px; padding:10px 12px; color:#fff; cursor:pointer; position:relative; }
+  .rc-star{ position:absolute; top:7px; right:8px; font-size:15px; line-height:1; color:rgba(255,255,255,.35); cursor:pointer; padding:2px; } .rc-star.on{ color:#ffd66b; }
+  .rc-name{ display:block; font-size:13px; font-weight:700; margin-bottom:4px; padding-right:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rc-meta{ display:block; font-size:11px; opacity:.65; font-weight:500; }
+  .saved-empty{ font-size:12.5px; opacity:.6; padding:12px 2px; }
+
+  .zoom{ position:absolute; right:14px; top:40%; display:flex; flex-direction:column; gap:8px; z-index:7; }
+  .zoom button{ width:44px; height:44px; border-radius:14px; border:1px solid var(--stroke); background:rgba(5,43,56,.5); backdrop-filter:blur(12px); color:#fff; font-size:22px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.28); }
+  .zoom button:disabled{ opacity:.35; }
+
+  /* ================= LIVE ================= */
+  #view-live{ background:#03161f; }
+  #view-live video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  .lv-grade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 52%, rgba(0,0,0,.7) 100%); }
+  .lv-in{ position:absolute; inset:0; z-index:2; display:flex; flex-direction:column; padding:52px 18px 104px; color:#fff; }
+  .lv-top{ display:flex; align-items:center; gap:10px; }
+  .lv-rec{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; letter-spacing:.4px; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; }
+  .lv-rec b{ width:9px; height:9px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 10px #ff4d4d; animation:blink 1.2s infinite; }
+  @keyframes blink{ 50%{opacity:.3} }
+  .lv-rec.paused b{ animation:none; opacity:.35; box-shadow:none; }
+  .lv-depth{ margin-left:auto; font-size:13px; font-weight:700; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; }
+  .lv-share{ margin-top:14px; align-self:center; display:flex; align-items:center; gap:11px; background:rgba(3,26,40,.5); border:1px solid var(--stroke); padding:9px 12px 9px 16px; border-radius:20px; backdrop-filter:blur(10px); }
+  .lv-share .lst{ font-size:13px; font-weight:700; } .lv-share .lss{ font-size:11px; opacity:.7; }
+  .toggle{ position:relative; width:50px; height:29px; border-radius:16px; background:rgba(255,255,255,.25); border:none; cursor:pointer; flex:none; transition:.25s; }
+  .toggle::after{ content:''; position:absolute; top:3px; left:3px; width:23px; height:23px; border-radius:50%; background:#fff; transition:.25s; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .toggle.on{ background:var(--aqua); } .toggle.on::after{ left:24px; }
+  .lv-sp{ flex:1; }
+  .lv-controls{ display:flex; align-items:center; justify-content:center; gap:40px; }
+  .lv-photo{ width:56px; height:56px; border-radius:50%; border:2px solid #fff; background:rgba(255,255,255,.15); backdrop-filter:blur(8px); cursor:pointer; }
+  .lv-recbtn{ width:74px; height:74px; border-radius:50%; border:5px solid #fff; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .lv-recbtn i{ width:28px; height:28px; border-radius:8px; background:#ff4d4d; transition:.2s; }
+  .lv-badge{ align-self:center; margin-top:10px; font-size:12px; font-weight:700; padding:6px 13px; border-radius:14px; background:rgba(31,215,207,.22); border:1px solid rgba(31,215,207,.5); color:#c8fffb; }
+
+  /* ================= VITAL MONITOR (sky) ================= */
+  #view-vital{ background:transparent; color:#0b2b3a; overflow-y:auto; }
+  .vt{ padding:52px 20px 104px; }
+  .vt-h{ font-size:25px; font-weight:800; letter-spacing:-.3px; }
+  .vt-s{ font-size:13px; color:#5b7c8f; margin:3px 0 18px; }
+  .ai-card{ background:linear-gradient(150deg,#d6f6f3,#eafaff); border:1px solid rgba(31,215,207,.4); border-radius:22px; padding:16px 18px; margin-bottom:16px; box-shadow:0 8px 22px rgba(80,140,170,.12); }
+  .ai-h{ display:flex; align-items:center; gap:9px; font-size:14px; font-weight:800; margin-bottom:9px; }
+  .ai-h .sp{ width:24px; height:24px; border-radius:8px; background:var(--aqua); color:#06283a; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; }
+  .ai-card p{ font-size:13px; line-height:1.55; color:#33566a; }
+  .ai-card p b{ color:#0b2b3a; }
+  .sec-lbl{ font-size:13px; font-weight:800; margin:6px 2px 12px; }
+  .vt-seg{ display:flex; gap:4px; background:#dbecf7; border-radius:16px; padding:4px; margin:0 0 18px; }
+  .vt-seg button{ flex:1; border:none; background:none; color:#5b7c8f; font-size:13.5px; font-weight:700; padding:9px; border-radius:12px; cursor:pointer; }
+  .vt-seg button.on{ background:#fff; color:#0b2b3a; box-shadow:0 3px 8px rgba(80,140,170,.15); }
+  .vt-pane{ display:none; } .vt-pane.on{ display:block; }
+  .vt-detail{ display:flex; flex-direction:column; gap:11px; }
+  .vd-card{ background:linear-gradient(160deg, rgba(255,255,255,.6), rgba(220,240,246,.4)); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.75); border-radius:18px; padding:14px 16px; box-shadow:0 8px 20px rgba(80,140,170,.12); }
+  .vd-h{ font-size:12.5px; color:#7d97a7; font-weight:700; }
+  .vd-main{ font-size:22px; font-weight:800; margin-top:5px; } .vd-main small{ font-size:12px; color:#9ab0bd; font-weight:600; }
+  .vd-sub{ font-size:12.5px; color:#7d97a7; font-weight:600; margin-top:5px; } .vd-sub b{ color:#0b2b3a; }
+  .past{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #e2eef6; border-radius:18px; padding:13px 16px; margin-bottom:10px; box-shadow:0 5px 14px rgba(80,140,170,.08); }
+  .past .pd{ text-align:center; flex:none; width:44px; } .past .pd .pdd{ font-size:19px; font-weight:800; } .past .pd .pdm{ font-size:10px; color:#9ab0bd; font-weight:600; }
+  .past .pdiv{ width:1px; align-self:stretch; background:#e8f0f6; }
+  .past .pv{ flex:1; display:flex; gap:16px; } .past .pv .pk{ font-size:10.5px; color:#9ab0bd; font-weight:600; } .past .pv .pvv{ font-size:14px; font-weight:800; margin-top:2px; }
+  .vt-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:11px; margin-bottom:22px; }
+  .vcard{ background:linear-gradient(160deg, rgba(255,255,255,.6), rgba(220,240,246,.4)); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.75); border-radius:18px; padding:14px 12px; text-align:center; box-shadow:0 8px 20px rgba(80,140,170,.12); }
+  .vcard .vi{ font-size:20px; } .vcard .vk{ font-size:11px; color:#7d97a7; font-weight:600; margin-top:5px; }
+  .vcard .vv{ font-size:20px; font-weight:800; margin-top:2px; } .vcard .vv small{ font-size:11px; color:#9ab0bd; font-weight:600; }
+  .friend{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid #e2eef6; border-radius:18px; padding:13px 15px; margin-bottom:10px; cursor:pointer; box-shadow:0 5px 14px rgba(80,140,170,.08); }
+  .friend:active{ background:#f5fbff; }
+  .friend.off{ opacity:.55; cursor:default; }
+  .friend.danger{ border-color:rgba(255,90,90,.5); box-shadow:0 5px 16px rgba(255,90,90,.18); }
+  .vt-alarm{ display:flex; align-items:center; gap:11px; width:100%; text-align:left; border:1px solid rgba(255,82,82,.45); background:linear-gradient(150deg,#ffe4e1,#fff0ee); color:#c0271f; border-radius:18px; padding:14px 16px; margin-bottom:16px; cursor:pointer; box-shadow:0 6px 18px rgba(255,82,82,.2); animation:alarmpulse 1.4s infinite; }
+  @keyframes alarmpulse{ 50%{ box-shadow:0 6px 22px rgba(255,82,82,.42); } }
+  .vt-alarm .ai{ font-size:22px; flex:none; } .vt-alarm .atxt{ display:flex; flex-direction:column; }
+  .vt-alarm .at{ font-size:14px; font-weight:800; } .vt-alarm .as{ font-size:12px; opacity:.85; margin-top:2px; } .vt-alarm .atap{ font-size:12px; font-weight:800; margin-top:4px; }
+  .friend .fav{ width:44px; height:44px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:20px; background:linear-gradient(150deg,#cdeffb,#e7f7ff); }
+  .friend .fn{ font-size:15px; font-weight:700; } .friend .fr{ font-size:12px; color:#7d97a7; margin-top:1px; }
+  .friend .fstat{ margin-left:auto; text-align:right; }
+  .friend .fbadge{ font-size:11px; font-weight:700; padding:3px 9px; border-radius:10px; background:rgba(31,215,207,.16); color:#0b8f88; }
+  .friend .fbadge.warn{ background:rgba(255,140,90,.16); color:#d2691e; }
+  .friend .fhr{ font-size:11px; color:#9ab0bd; margin-top:4px; }
+  .friend-tools{ display:flex; gap:9px; margin-bottom:12px; }
+  .fsearch{ flex:1; display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e2eef6; border-radius:14px; padding:10px 14px; box-shadow:0 4px 12px rgba(80,140,170,.06); }
+  .fsearch span{ font-size:14px; opacity:.55; } .fsearch input{ flex:1; min-width:0; border:none; background:none; outline:none; font-size:14px; color:#0b2b3a; font-weight:600; }
+  .fsearch input::placeholder{ color:#9ab0bd; font-weight:500; }
+  .nearby-btn{ flex:none; font-size:12.5px; font-weight:700; color:#0b8f88; background:rgba(31,215,207,.12); border:1px solid rgba(31,215,207,.32); border-radius:14px; padding:0 13px; cursor:pointer; white-space:nowrap; }
+  .nearby-btn.on{ background:var(--aqua); color:#053b3a; border-color:var(--aqua); }
+  .friend-empty{ text-align:center; font-size:13px; color:#7d97a7; padding:22px; }
+
+  /* placeholder views */
+  .ph{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:#eafcfb; background:linear-gradient(180deg,#06303f,#04222f); }
+  .view.ph.on{ display:flex; }
+  #view-device.ph{ background:linear-gradient(180deg,#eaf7ff,#cfe8fb); color:#0b2b3a; }
+  .ph .pi{ font-size:44px; } .ph .pt{ font-size:18px; font-weight:800; } .ph .ps{ font-size:13px; opacity:.7; }
+
+  /* ================= DIVE LOG ================= */
+  #view-log{ background:transparent; color:#0b2b3a; overflow-y:auto; }
+  .dl{ padding:52px 20px 104px; }
+  .dl-h{ font-size:25px; font-weight:800; }
+  .dl-s{ font-size:13px; color:#5b7c8f; margin:3px 0 20px; }
+  .dl-calhead{ display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+  .dl-month{ font-size:16px; font-weight:800; }
+  .dl-nav{ width:32px; height:32px; border-radius:50%; border:1px solid #d6e6f0; background:#fff; color:#4a6577; font-size:16px; line-height:1; cursor:pointer; }
+  .dl-all{ margin-left:auto; font-size:12.5px; font-weight:700; color:#0b8f88; background:rgba(31,215,207,.14); border:1px solid rgba(31,215,207,.35); padding:7px 13px; border-radius:14px; cursor:pointer; }
+  .dl-week{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .dl-day{ display:flex; flex-direction:column; align-items:center; gap:7px; padding:4px 0; background:none; border:none; cursor:pointer; }
+  .dl-wd{ font-size:11px; font-weight:700; color:#9ab0bd; }
+  .dl-day.sun .dl-wd{ color:#ef8a8a; } .dl-day.sat .dl-wd{ color:#7fb0e6; }
+  .dl-ringwrap{ position:relative; width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+  .dl-ring{ position:absolute; inset:0; width:40px; height:40px; transform:rotate(-90deg); }
+  .drbg{ fill:none; stroke:#e3eef6; stroke-width:3.4; }
+  .drfg{ fill:none; stroke:var(--aqua); stroke-width:3.4; stroke-linecap:round; }
+  .dl-num{ position:relative; font-size:14px; font-weight:700; color:#33566a; }
+  .dl-day.on .dl-ringwrap::before{ content:''; position:absolute; inset:4px; border-radius:50%; background:var(--aqua); }
+  .dl-day.on .dl-num{ color:#053b3a; }
+  .dl-day.empty .dl-num{ color:#c2d3de; }
+  .dl-div{ height:1px; background:#dbe8f1; margin:20px 0; }
+  .dl-sech{ font-size:16px; font-weight:800; margin-bottom:14px; } .dl-sech span{ color:#0b8f88; }
+  .dl-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:6px; }
+  .dst{ background:linear-gradient(160deg, rgba(255,255,255,.6), rgba(220,240,246,.4)); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.75); border-radius:14px; padding:12px 11px; box-shadow:0 8px 20px rgba(80,140,170,.12); }
+  .dst .dsk{ font-size:11px; color:#7d97a7; font-weight:600; } .dst .dsv{ font-size:16px; font-weight:800; margin-top:5px; }
+  .dl-sub{ display:flex; align-items:center; justify-content:space-between; margin:14px 2px 10px; } .dl-sec2{ font-size:13.5px; font-weight:800; } .dl-sec2 b{ color:#0b8f88; margin-left:3px; }
+  .dl-allsm{ font-size:12px; font-weight:700; color:#0b8f88; background:rgba(31,215,207,.12); border:1px solid rgba(31,215,207,.32); padding:5px 11px; border-radius:12px; cursor:pointer; }
+  .mf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 16px 60px; }
+  .mf-grid .dl-thumb{ width:auto; height:auto; aspect-ratio:1/1; }
+  .dl-row{ display:flex; gap:9px; overflow-x:auto; padding-bottom:4px; } .dl-row::-webkit-scrollbar{ display:none; }
+  .dl-thumb{ position:relative; flex:none; width:104px; height:104px; border-radius:14px; overflow:hidden; border:1px solid #dbe8f1; }
+  .dl-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .dl-thumb .tp{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .dl-thumb .tp::after{ content:''; border-left:9px solid #06283a; border-top:6px solid transparent; border-bottom:6px solid transparent; margin-left:2px; }
+  .dl-empty{ text-align:center; padding:44px 20px; } .dl-empty .dei{ font-size:38px; } .dl-empty .det{ font-size:15px; font-weight:700; margin-top:10px; } .dl-empty .des{ font-size:12.5px; color:#7d97a7; margin-top:6px; }
+
+  .dlfull{ position:absolute; inset:0; z-index:33; background:linear-gradient(180deg,#f2f9ff,#dcecf8); color:#0b2b3a; transform:translateY(100%); transition:transform .32s cubic-bezier(.4,0,.2,1); overflow-y:auto; }
+  .dlfull.open{ transform:translateY(0); }
+  .dlfull-head{ display:flex; align-items:center; padding:50px 18px 12px; }
+  .dlfull-back{ width:42px; height:42px; border-radius:50%; border:1px solid #d6e6f0; background:#fff; color:#4a6577; font-size:22px; cursor:pointer; }
+  .dlfull-title{ flex:1; text-align:center; font-size:17px; font-weight:800; }
+  .dlfull-wd{ display:grid; grid-template-columns:repeat(7,1fr); padding:0 18px 10px; }
+  .dlfull-wd span{ text-align:center; font-size:11px; font-weight:700; color:#9ab0bd; }
+  .dlfull-wd span:first-child{ color:#ef8a8a; } .dlfull-wd span:last-child{ color:#7fb0e6; }
+  .dlfull-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px 2px; padding:0 16px 60px; }
+
+  /* ================= DEVICE ================= */
+  #view-device{ background:transparent; color:#0b2b3a; overflow-y:auto; }
+  .dv{ padding:52px 20px 104px; }
+  .dv-h{ font-size:25px; font-weight:800; } .dv-s{ font-size:13px; color:#5b7c8f; margin:3px 0 20px; }
+  .dvcard{ background:#fff; border:1px solid #e2eef6; border-radius:22px; padding:16px 18px; margin-bottom:14px; box-shadow:0 8px 22px rgba(80,140,170,.1); }
+  .dvc-top{ display:flex; align-items:center; gap:14px; margin-bottom:8px; }
+  .dvc-img{ width:58px; height:58px; object-fit:contain; flex:none; }
+  .dvc-name{ flex:1; min-width:0; font-size:14.5px; font-weight:800; white-space:nowrap; } .dvc-name small{ display:block; font-size:11px; color:#9ab0bd; font-weight:600; margin-top:2px; white-space:nowrap; }
+  .dvc-badge{ font-size:11px; font-weight:700; padding:6px 10px; border-radius:12px; white-space:nowrap; flex:none; }
+  .dvc-badge.on{ background:rgba(24,194,104,.14); color:#0f9c52; } .dvc-badge.off{ background:rgba(150,160,170,.16); color:#7d8a97; }
+  .dvc-specs > div{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid #eef4f9; }
+  .dsk2{ font-size:13px; color:#7d97a7; font-weight:600; } .dsv2{ font-size:13.5px; font-weight:800; }
+  .dsv2.ok{ color:#0f9c52; }
+  .dvc-batt{ display:flex; align-items:center; gap:9px; }
+  .dvc-batt .bar{ width:46px; height:9px; border-radius:5px; background:#e6eef4; overflow:hidden; } .dvc-batt .bar i{ display:block; height:100%; border-radius:5px; background:#18c268; }
+
+  /* ================= modal popups ================= */
+  .modal{ position:absolute; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:30px; background:rgba(5,25,35,.55); backdrop-filter:blur(3px); }
+  .modal.open{ display:flex; }
+  .modal-card{ position:relative; width:100%; max-width:322px; background:#fff; border-radius:26px; padding:26px 22px 22px; text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.4); }
+  .modal-x{ position:absolute; top:15px; right:15px; width:30px; height:30px; border-radius:50%; border:none; background:#f0f4f8; color:#8aa0b0; font-size:14px; cursor:pointer; }
+  .modal-badge{ width:64px; height:64px; margin:2px auto 14px; border-radius:22px; background:linear-gradient(160deg,#cdeffb,#e7f7ff); display:flex; align-items:center; justify-content:center; font-size:32px; }
+  .modal-t{ font-size:21px; font-weight:800; color:#0b2b3a; }
+  .modal-s{ font-size:13px; color:#7d97a7; margin-top:8px; line-height:1.55; }
+  .modal-sum{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; margin:18px 0 4px; }
+  .modal-sum > div{ background:#f2f9fd; border-radius:14px; padding:12px 4px; }
+  .msk{ font-size:10.5px; color:#7d97a7; font-weight:600; } .msv{ font-size:16px; font-weight:800; color:#0b2b3a; margin-top:5px; }
+  .modal-btns{ display:flex; gap:10px; margin-top:20px; }
+  .mb-ghost{ flex:1; padding:14px; border-radius:16px; border:1px solid #dbe8f1; background:#fff; color:#5b7c8f; font-size:14.5px; font-weight:700; cursor:pointer; }
+  .mb-primary{ flex:1; padding:14px; border-radius:16px; border:none; background:var(--aqua); color:#053b3a; font-size:14.5px; font-weight:800; cursor:pointer; box-shadow:0 8px 18px rgba(31,215,207,.4); }
+  .mb-primary.wide{ width:100%; margin-top:18px; }
+
+  /* ================= nearby radar ================= */
+  .radar{ position:absolute; inset:0; z-index:36; display:flex; flex-direction:column; transform:translateY(100%); transition:transform .34s cubic-bezier(.4,0,.2,1); background:linear-gradient(180deg,#eaf7ff,#dcecf7); color:#0b2b3a; }
+  .radar.open{ transform:translateY(0); }
+  .rd-head{ display:flex; align-items:center; gap:12px; padding:50px 18px 6px; }
+  .rd-back{ width:42px; height:42px; border-radius:50%; border:1px solid #d6e6f0; background:#fff; color:#4a6577; font-size:22px; cursor:pointer; }
+  .rd-title{ font-size:18px; font-weight:800; } .rd-title small{ display:block; font-size:12px; color:#7d97a7; font-weight:600; margin-top:1px; }
+  .rd-scan{ position:relative; height:296px; overflow:hidden; }
+  .rd-map{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.5; }
+  .rd-mapfade{ position:absolute; inset:0; background:radial-gradient(circle at 50% 50%, rgba(234,247,255,.05), rgba(234,247,255,.7) 82%); }
+  .rd-center{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:16px; height:16px; border-radius:50%; background:var(--aqua); box-shadow:0 0 0 6px rgba(31,215,207,.25), 0 0 16px rgba(31,215,207,.7); z-index:3; }
+  .rd-ping{ position:absolute; left:50%; top:50%; width:150px; height:150px; z-index:2; opacity:0; transform:translate(-50%,-50%) scale(.12); animation:mantaping 3.3s ease-out infinite; }
+  .rd-ping svg{ width:100%; height:100%; display:block; }
+  .rd-ping:nth-of-type(2){ animation-delay:1.1s; } .rd-ping:nth-of-type(3){ animation-delay:2.2s; }
+  @keyframes mantaping{ 0%{ transform:translate(-50%,-50%) scale(.12); opacity:0 } 14%{ opacity:.6 } 100%{ transform:translate(-50%,-50%) scale(2.7); opacity:0 } }
+  .rd-pin{ position:absolute; transform:translate(-50%,-50%); z-index:4; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer; animation:pinpop .45s both; }
+  .rd-pin .pav{ width:38px; height:38px; border-radius:50%; background:#fff; border:2px solid var(--aqua); display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 4px 10px rgba(0,0,0,.15); }
+  .rd-pin.warn .pav{ border-color:#ff5a5a; }
+  .rd-pin .plabel{ font-size:10.5px; font-weight:700; background:#fff; padding:2px 8px; border-radius:9px; box-shadow:0 2px 6px rgba(0,0,0,.12); white-space:nowrap; }
+  @keyframes pinpop{ from{ opacity:0; transform:translate(-50%,-50%) scale(.5) } to{ opacity:1; transform:translate(-50%,-50%) scale(1) } }
+  .rd-list{ flex:1; background:#fff; border-radius:26px 26px 0 0; box-shadow:0 -8px 26px rgba(80,140,170,.18); padding:18px 18px 24px; overflow-y:auto; }
+  .rd-lh{ font-size:15px; font-weight:800; margin-bottom:10px; } .rd-lh b{ color:#0b8f88; }
+  .rd-person{ display:flex; align-items:center; gap:12px; min-height:66px; padding:11px 0; border-top:1px solid #eef4f9; }
+  .rd-person:first-of-type{ border-top:none; }
+  .rd-person .rpav{ width:42px; height:42px; border-radius:50%; background:linear-gradient(150deg,#cdeffb,#e7f7ff); display:flex; align-items:center; justify-content:center; font-size:19px; flex:none; }
+  .rd-person .rp-txt{ flex:1; min-width:0; }
+  .rd-person .rpn{ font-size:14.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .rd-person .rpi{ font-size:11.5px; color:#7d97a7; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rd-person .rpbtns{ margin-left:auto; display:flex; gap:7px; }
+  .rpbtn{ font-size:12px; font-weight:700; padding:8px 12px; border-radius:12px; cursor:pointer; border:1px solid; }
+  .rpbtn.share{ background:#fff; border-color:#cfe0ea; color:#5b7c8f; } .rpbtn.share.done{ background:rgba(24,194,104,.14); border-color:transparent; color:#0f9c52; }
+  .rpbtn.live{ background:var(--aqua); border-color:var(--aqua); color:#053b3a; }
+  .rpbtn.live.req{ background:#eef4f9; border-color:#dbe8f1; color:#8aa0b0; }
+
+  /* ================= bottom tab bar ================= */
+  .tabbar{ position:absolute; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:space-around; background:rgba(255,255,255,.98); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid rgba(0,0,0,.06); padding:10px 8px 26px; box-shadow:0 -4px 22px rgba(20,50,70,.1); z-index:16; }
+  .tab{ display:flex; align-items:center; justify-content:center; border:none; background:none; cursor:pointer; color:#9aa7b2; padding:11px; border-radius:16px; transition:background .22s, color .22s, padding .22s; }
+  .tab svg{ width:21px; height:21px; display:block; stroke-width:2; }
+  .tab .tlabel{ font-size:12.5px; font-weight:800; max-width:0; overflow:hidden; white-space:nowrap; opacity:0; transition:max-width .24s, opacity .24s, margin .24s; }
+  .tab.on{ background:var(--aqua); color:#053b3a; padding:11px 15px; box-shadow:0 6px 15px rgba(31,215,207,.42); }
+  .tab.on .tlabel{ max-width:90px; opacity:1; margin-left:8px; }
+  .tabbar.dark{ background:transparent; border-top:none; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+  .tabbar.dark .tab{ color:rgba(255,255,255,.75); }
+
+  /* ================= overlays ================= */
+  .vp{ position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; background:#03161f; transform:translateY(100%); transition:transform .32s cubic-bezier(.4,0,.2,1); }
+  .vp.open{ transform:translateY(0); }
+  .vp video, .vp img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  .vp-grade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 26%, rgba(0,0,0,0) 58%, rgba(0,0,0,.66) 100%); }
+  .vp-in{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; padding:44px 18px 40px; color:#fff; }
+  .vp-top{ display:flex; align-items:center; gap:10px; }
+  .vp-live{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:800; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; }
+  .vp-live b{ width:8px; height:8px; border-radius:50%; background:var(--aqua); box-shadow:0 0 8px var(--aqua); }
+  .vp-depth{ font-size:13px; font-weight:700; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; }
+  .vp-close{ margin-left:auto; width:40px; height:40px; border-radius:50%; border:1px solid var(--stroke); background:rgba(0,0,0,.4); color:#fff; font-size:17px; cursor:pointer; }
+  .vp-cap{ margin-top:auto; font-size:13px; font-weight:600; opacity:.9; }
+
+  .nav{ position:absolute; inset:0; z-index:32; display:flex; flex-direction:column; background:#083640; transform:translateX(100%); transition:transform .34s cubic-bezier(.4,0,.2,1); }
+  .nav.open{ transform:translateX(0); }
+  .nav-map{ position:relative; flex:1; overflow:hidden; }
+  .nav-map .map{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scale(1.35); transform-origin:50% 40%; }
+  .nav-mgrade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(4,34,47,.62) 0%, rgba(4,34,47,0) 26%, rgba(4,34,47,0) 60%, rgba(4,34,47,.55) 100%); }
+  .nav-svg{ position:absolute; inset:0; width:100%; height:100%; z-index:2; overflow:visible; }
+  .nav-bg{ fill:none; stroke:rgba(255,255,255,.35); stroke-width:5; stroke-linecap:round; vector-effect:non-scaling-stroke; }
+  .nav-done{ fill:none; stroke:var(--aqua); stroke-width:5; stroke-linecap:round; vector-effect:non-scaling-stroke; filter:drop-shadow(0 0 6px rgba(31,215,207,.8)); }
+  .puck{ position:absolute; z-index:4; width:38px; height:38px; margin:-19px 0 0 -19px; border-radius:50%; background:var(--aqua); border:3px solid #fff; box-shadow:0 4px 14px rgba(0,0,0,.4), 0 0 0 8px rgba(31,215,207,.25); display:flex; align-items:center; justify-content:center; }
+  .puck svg{ width:18px; height:18px; transform:rotate(var(--r,0deg)); transition:transform .12s linear; }
+  .nav-nextpill{ position:absolute; z-index:5; left:50%; top:14px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; background:#fff; color:#06283a; font-weight:700; font-size:13px; padding:9px 15px; border-radius:18px; box-shadow:0 6px 18px rgba(0,0,0,.3); white-space:nowrap; }
+  .nav-nextpill .turn{ width:22px; height:22px; border-radius:50%; background:var(--aqua); display:flex; align-items:center; justify-content:center; color:#06283a; }
+  .nav-nextpill small{ display:block; font-size:10.5px; font-weight:600; opacity:.55; margin-top:1px; }
+  .nav-top{ position:absolute; z-index:6; top:44px; left:16px; right:16px; display:flex; align-items:center; gap:12px; }
+  .nav-back{ width:42px; height:42px; border-radius:50%; border:1px solid var(--stroke); background:rgba(5,43,56,.5); backdrop-filter:blur(10px); color:#fff; font-size:22px; cursor:pointer; }
+  .nav-title{ font-size:16px; font-weight:800; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.5); }
+  .nav-card{ flex:none; padding:18px 22px 30px; background:#0b3f4a; border-radius:26px 26px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.35); color:#fff; margin-top:-26px; position:relative; z-index:7; }
+  .nav-stats{ display:flex; align-items:center; } .nav-stats .col{ flex:1; }
+  .nav-stats .nk{ font-size:12px; opacity:.65; } .nav-stats .nv{ font-size:24px; font-weight:800; margin-top:3px; }
+  .nav-stats .nsep{ width:1px; height:34px; background:rgba(255,255,255,.16); margin:0 18px; }
+  .nav-prog{ height:6px; border-radius:4px; background:rgba(255,255,255,.14); margin:16px 0; overflow:hidden; }
+  .nav-prog i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--aqua),#8ff2ec); transition:width .2s linear; }
+  .nav-stop{ width:100%; padding:15px; border-radius:18px; background:rgba(255,255,255,.14); border:1px solid var(--stroke); color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+
+  /* friend detail overlay */
+  .fd{ position:absolute; inset:0; z-index:34; display:flex; flex-direction:column; background:#03161f; transform:translateX(100%); transition:transform .34s cubic-bezier(.4,0,.2,1); }
+  .fd.open{ transform:translateX(0); }
+  .fd video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  .fd-grade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 28%, rgba(0,0,0,.2) 55%, rgba(0,0,0,.8) 100%); }
+  .fd-in{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; padding:44px 18px 30px; color:#fff; }
+  .fd-top{ display:flex; align-items:center; gap:11px; }
+  .fd-back{ width:42px; height:42px; border-radius:50%; border:1px solid var(--stroke); background:rgba(0,0,0,.4); color:#fff; font-size:22px; cursor:pointer; }
+  .fd-name{ font-size:17px; font-weight:800; } .fd-name small{ display:block; font-size:11.5px; opacity:.75; font-weight:600; }
+  .fd-live{ margin-left:auto; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:800; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; }
+  .fd-live b{ width:8px; height:8px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 8px #ff4d4d; animation:blink 1.2s infinite; }
+  .fd-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .fd-chips .fdc{ display:flex; align-items:center; gap:5px; font-size:12.5px; font-weight:600; color:#fff; background:rgba(0,0,0,.4); border:1px solid var(--stroke); padding:7px 13px; border-radius:14px; backdrop-filter:blur(8px); }
+  .fd-chips .fdc b{ font-weight:800; }
+  .fd-sp{ flex:1; }
+  .fd-health{ display:flex; gap:9px; margin-bottom:14px; }
+  .fd-health .h{ flex:1; background:rgba(3,26,40,.5); border:1px solid var(--stroke); border-radius:16px; padding:11px 10px; text-align:center; backdrop-filter:blur(8px); }
+  .fd-health .hk{ font-size:11px; opacity:.72; } .fd-health .hv{ font-size:18px; font-weight:800; margin-top:3px; }
+  .fd-sos{ width:100%; padding:16px; border:none; border-radius:20px; background:linear-gradient(150deg,#ff6b6b,#e03030); color:#fff; font-size:16px; font-weight:900; letter-spacing:.5px; cursor:pointer; box-shadow:0 10px 26px rgba(224,48,48,.45); }
+  .fd-sos.sent{ background:linear-gradient(150deg,#18c268,#0f9c52); box-shadow:0 10px 26px rgba(24,194,104,.4); }
+</style>
+</head>
+<body>
+  <div class="phone" id="phone">
+    <div class="statusbar">
+      <span>9:41</span>
+      <div class="sysicons"><div class="bars"><span></span><span></span><span></span><span></span></div><div class="batt"><i></i></div></div>
+    </div>
+
+    <!-- shared wave gradient backdrop (light screens) -->
+    <div class="wavebg">
+      <svg viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="wbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf7ff"/><stop offset="0.5" stop-color="#e3f1fb"/><stop offset="1" stop-color="#dcecf7"/></linearGradient>
+          <radialGradient id="wg1" cx="0.26" cy="0.14" r="0.62"><stop offset="0" stop-color="#9fd7ef" stop-opacity="0.7"/><stop offset="1" stop-color="#9fd7ef" stop-opacity="0"/></radialGradient>
+          <radialGradient id="wg2" cx="0.92" cy="0.06" r="0.55"><stop offset="0" stop-color="#c3d3f6" stop-opacity="0.65"/><stop offset="1" stop-color="#c3d3f6" stop-opacity="0"/></radialGradient>
+          <radialGradient id="wg3" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#c8f0ec" stop-opacity="0.45"/><stop offset="1" stop-color="#c8f0ec" stop-opacity="0"/></radialGradient>
+          <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="26"/></filter>
+        </defs>
+        <rect width="390" height="844" fill="url(#wbg)"/>
+        <rect width="390" height="844" fill="url(#wg1)"/>
+        <rect width="390" height="844" fill="url(#wg2)"/>
+        <rect width="390" height="844" fill="url(#wg3)"/>
+        <g filter="url(#soft)">
+          <path d="M-40,300 C70,262 150,338 220,314 C300,287 350,344 430,320 L430,486 C340,506 270,438 190,462 C120,483 50,436 -40,462 Z" fill="#ffffff" opacity="0.4"/>
+          <path d="M-40,392 C80,352 160,420 240,398 C310,380 360,422 430,406 L430,590 C340,610 260,528 190,552 C110,578 40,520 -40,548 Z" fill="#ffffff" opacity="0.5"/>
+          <path d="M-40,486 C90,456 170,514 260,492 C330,476 370,512 430,500 L430,900 L-40,900 Z" fill="#f4faff" opacity="0.9"/>
+        </g>
+      </svg>
+    </div>
+
+    <!-- ============ HOME ============ -->
+    <section class="view on" id="view-home">
+      <div class="mapstage" id="mapstage">
+        <div class="map-fallback"></div>
+        <img class="map" src="assets/reef-map.png" alt="reef map">
+        <svg class="routesvg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <path class="rpath-bg" id="rpathBg" d=""/><path class="rpath" id="rpath" d=""/>
+          <path class="gpath" id="gpath" d=""/><path class="cpath" id="cpath" d=""/>
+        </svg>
+        <div class="layer" id="exploreLayer"></div>
+        <div class="layer hide" id="ghostLayer"></div>
+        <div class="cpoints" id="cpoints"></div>
+      </div>
+      <div class="grade"></div>
+      <div class="home-inner">
+        <div class="topbar">
+          <div>
+            <div class="title">SeaOasis</div>
+            <div class="subinfo"><span>📍 제주 · 서귀포</span><span class="sep">|</span><span>☀️ 맑음</span><b>24°C</b><span class="sep">·</span><span>수온 21°C</span></div>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="route-hint" id="hint">경로를 만들거나 불러오면 여기에 표시돼요</div>
+        <div class="card" id="card">
+          <div class="sheet-grab" id="sheetGrab"><div class="handle"></div></div>
+          <div class="modeToggle" id="modeToggle">
+            <button class="on" data-mode="explore">탐색</button>
+            <button data-mode="create">경로 만들기</button>
+          </div>
+          <div class="pane on" id="paneExplore">
+            <div class="card-h">내 다이빙 경로 <span class="chip"><b></b> Sea-Buddy 연결됨</span></div>
+            <div class="stats">
+              <div><div class="sk">거리</div><div class="sv"><span id="exDist">–</span> km</div></div>
+              <div><div class="sk">최대 수심</div><div class="sv">-<span id="exDepth">–</span> m</div></div>
+              <div><div class="sk">예상 시간</div><div class="sv"><span id="exTime">–</span> 분</div></div>
+            </div>
+            <button class="cta" id="startBtn" disabled>경로 안내 시작</button>
+          </div>
+          <div class="pane" id="paneCreate">
+            <div class="card-h">내 경로 만들기 <span class="chip" style="background:rgba(255,255,255,.12)">✦ 추천 경로 표시 중</span></div>
+            <div class="saved">
+              <div class="saved-tabs" id="savedTabs"><button class="on" data-list="recent">최근 경로</button><button data-list="fav">즐겨찾기</button></div>
+              <div class="saved-row" id="savedRow"></div>
+            </div>
+            <div class="ctext">저장된 경로를 불러오거나, 추천 경로(점선)를 참고해 지도를 탭하세요</div>
+            <div class="stats">
+              <div><div class="sk">포인트</div><div class="sv"><span id="cCount">0</span> 개</div></div>
+              <div><div class="sk">거리</div><div class="sv"><span id="cDist">0.0</span> km</div></div>
+              <div><div class="sk">예상 시간</div><div class="sv"><span id="cTime">0</span> 분</div></div>
+            </div>
+            <div class="cbtns"><button class="ghost" id="undoBtn" disabled>되돌리기</button><button class="cta" id="doneBtn">경로 저장</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="zoom" id="zoom"><button id="zoomIn">＋</button><button id="zoomOut">－</button></div>
+    </section>
+
+    <!-- ============ LIVE ============ -->
+    <section class="view" id="view-live">
+      <video id="liveVideo" src="assets/sea-reef.mp4" poster="assets/ocean-bg.png" muted loop playsinline></video>
+      <div class="lv-grade"></div>
+      <div class="lv-in">
+        <div class="lv-top">
+          <div class="lv-rec" id="liveRec"><b></b> REC <span id="liveTime">00:12</span></div>
+          <div class="lv-depth">-14 m · 21°C</div>
+        </div>
+        <div class="lv-share">
+          <div><div class="lst">친구들에게 공유</div><div class="lss" id="shareState">공유 꺼짐</div></div>
+          <button class="toggle" id="shareToggle"></button>
+        </div>
+        <div class="lv-sp"></div>
+        <div class="lv-badge" id="liveBadge">AI 인식 · 흰동가리 발견</div>
+        <div class="lv-controls" style="margin-top:14px">
+          <button class="lv-photo" title="사진"></button>
+          <button class="lv-recbtn" id="liveRecBtn"><i></i></button>
+          <div class="lv-photo" style="visibility:hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VITAL MONITOR ============ -->
+    <section class="view scroll" id="view-vital">
+      <div class="vt">
+        <div class="vt-h">Vital Monitor</div>
+        <div class="vt-s">실시간 생체 지표 · Sea-Buddy 연동</div>
+
+        <div class="vt-seg" id="vtSeg"><button class="on" data-vt="today">오늘</button><button data-vt="past">지난 기록</button></div>
+
+        <div class="vt-pane on" id="vtToday">
+          <button class="vt-alarm" id="vtAlarm" style="display:none"></button>
+          <div class="ai-card">
+            <div class="ai-h"><span class="sp">AI</span> AI Summary</div>
+            <p><b>전반적으로 양호해요.</b> 심박·호흡이 안정 범위에 있고 체온도 정상입니다. 지난 다이빙 대비 스트레스 지표가 낮아 컨디션이 좋아요.</p>
+          </div>
+          <div class="sec-lbl">내 건강상태</div>
+          <div class="vt-grid">
+            <div class="vcard"><div class="vi">❤️</div><div class="vk">심박수</div><div class="vv">78<small> bpm</small></div></div>
+            <div class="vcard"><div class="vi">🫁</div><div class="vk">호흡상태</div><div class="vv">안정</div></div>
+            <div class="vcard"><div class="vi">🌡️</div><div class="vk">체온</div><div class="vv">36.5<small>°C</small></div></div>
+          </div>
+          <div class="sec-lbl">친구들의 건강상태</div>
+          <div class="friend-tools">
+            <div class="fsearch"><span>🔍</span><input id="friendSearch" placeholder="친구 이름 검색"></div>
+            <button class="nearby-btn" id="nearbyBtn">📍 가까운 친구</button>
+          </div>
+          <div id="friendList"></div>
+        </div>
+
+        <div class="vt-pane" id="vtPast">
+          <div class="dl-calhead">
+            <button class="dl-nav" id="vtPrev">‹</button>
+            <div class="dl-month" id="vtMonth">2026.11</div>
+            <button class="dl-nav" id="vtNext">›</button>
+            <button class="dl-all" id="vtAll">전체보기</button>
+          </div>
+          <div class="dl-week" id="vtWeek"></div>
+          <div class="dl-div"></div>
+          <div id="vtDayDetail">
+            <div class="dl-sech"><span id="vtDate">11월 19일</span> 건강 요약</div>
+            <div class="ai-card"><div class="ai-h"><span class="sp">AI</span> 그날의 요약</div><p id="vtNote"></p></div>
+            <div class="sec-lbl">상세 지표</div>
+            <div class="vt-detail">
+              <div class="vd-card"><div class="vd-h">❤️ 심박수</div><div class="vd-main"><span id="vtHrAvg">78</span><small> bpm 평균</small></div><div class="vd-sub">최고 <b id="vtHrMax">92</b> · 최저 <b id="vtHrMin">64</b></div></div>
+              <div class="vd-card"><div class="vd-h">🫁 호흡</div><div class="vd-main" id="vtRespState">안정</div><div class="vd-sub">평균 호흡 <b id="vtRespRate">14</b> 회/분</div></div>
+              <div class="vd-card"><div class="vd-h">🌡️ 체온</div><div class="vd-main"><span id="vtTempAvg">36.5</span><small>° 평균</small></div><div class="vd-sub">최고 <b id="vtTempMax">36.8</b>° · 최저 <b id="vtTempMin">36.2</b>°</div></div>
+            </div>
+          </div>
+          <div id="vtDayEmpty" class="dl-empty" style="display:none"><div class="dei">🩺</div><div class="det">이 날은 측정 기록이 없어요</div><div class="des">링이 채워진 날짜를 선택해 보세요</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DIVE LOG ============ -->
+    <section class="view scroll" id="view-log">
+      <div class="dl">
+        <div class="dl-h">Dive Log</div>
+        <div class="dl-s">다이빙 기록 · 제주 서귀포</div>
+        <div class="dl-calhead">
+          <button class="dl-nav" id="dlPrev">‹</button>
+          <div class="dl-month" id="dlMonth">2026.11</div>
+          <button class="dl-nav" id="dlNext">›</button>
+          <button class="dl-all" id="dlAll">전체보기</button>
+        </div>
+        <div class="dl-week" id="dlWeek"></div>
+        <div class="dl-div"></div>
+        <div id="dlDetail">
+          <div class="dl-sech"><span id="dlDate">11월 19일</span> 기록</div>
+          <div class="dl-stats">
+            <div class="dst"><div class="dsk">다이빙 장소</div><div class="dsv" id="dlLoc">문섬</div></div>
+            <div class="dst"><div class="dsk">다이빙 시간</div><div class="dsv"><span id="dlTime">32</span>분</div></div>
+            <div class="dst"><div class="dsk">이동 거리</div><div class="dsv"><span id="dlDist">420</span>m</div></div>
+            <div class="dst"><div class="dsk">최대 수심</div><div class="dsv">-<span id="dlMaxD">18</span>m</div></div>
+            <div class="dst"><div class="dsk">평균 수심</div><div class="dsv">-<span id="dlAvgD">11</span>m</div></div>
+            <div class="dst"><div class="dsk">평균 이동 속도</div><div class="dsv"><span id="dlSpeed">13</span><small style="font-size:11px;color:#9ab0bd"> m/분</small></div></div>
+          </div>
+          <div class="dl-sub"><span class="dl-sec2">📷 사진 <b id="dlPhotoN">0</b></span><button class="dl-allsm" id="dlPhotoAll">전체보기</button></div>
+          <div class="dl-row" id="dlPhotos"></div>
+          <div class="dl-sub"><span class="dl-sec2">🎬 영상 <b id="dlVideoN">0</b></span><button class="dl-allsm" id="dlVideoAll">전체보기</button></div>
+          <div class="dl-row" id="dlVideos"></div>
+        </div>
+        <div id="dlEmpty" class="dl-empty" style="display:none">
+          <div class="dei">🌊</div><div class="det">이 날은 다이빙 기록이 없어요</div><div class="des">링이 채워진 날짜를 선택해 보세요</div>
+        </div>
+      </div>
+    </section>
+    <!-- ============ DEVICE ============ -->
+    <section class="view scroll" id="view-device">
+      <div class="dv">
+        <div class="dv-h">Device</div>
+        <div class="dv-s">내 장비 상태 · 3대 연결됨</div>
+
+        <div class="dvcard">
+          <div class="dvc-top">
+            <img class="dvc-img" src="assets/product-cut.png" alt="Sea-Buddy">
+            <div class="dvc-name">Sea-Buddy <small>수중 드론</small></div>
+            <span class="dvc-badge on">● 연결됨</span>
+          </div>
+          <div class="dvc-specs">
+            <div><span class="dsk2">배터리</span><span class="dvc-batt"><span class="bar"><i style="width:86%"></i></span><span class="dsv2">86%</span></span></div>
+            <div><span class="dsk2">연결 상태</span><span class="dsv2 ok">연결됨 · Wi-Fi</span></div>
+            <div><span class="dsk2">센서 상태</span><span class="dsv2 ok">정상 4/4</span></div>
+            <div><span class="dsk2">마지막 동기화</span><span class="dsv2">방금 전</span></div>
+            <div><span class="dsk2">펌웨어 버전</span><span class="dsv2">v2.4.1</span></div>
+          </div>
+        </div>
+
+        <div class="dvcard">
+          <div class="dvc-top">
+            <img class="dvc-img" src="assets/ar-glass.png" alt="AR 글래스">
+            <div class="dvc-name">AR 스마트 수중 글래스 <small>Underwater AR Glass</small></div>
+            <span class="dvc-badge on">● 연결됨</span>
+          </div>
+          <div class="dvc-specs">
+            <div><span class="dsk2">배터리</span><span class="dvc-batt"><span class="bar"><i style="width:72%"></i></span><span class="dsv2">72%</span></span></div>
+            <div><span class="dsk2">연결 상태</span><span class="dsv2 ok">연결됨 · BLE</span></div>
+            <div><span class="dsk2">센서 상태</span><span class="dsv2 ok">정상 3/3</span></div>
+            <div><span class="dsk2">마지막 동기화</span><span class="dsv2">3분 전</span></div>
+            <div><span class="dsk2">펌웨어 버전</span><span class="dsv2">v1.8.0</span></div>
+          </div>
+        </div>
+
+        <div class="dvcard">
+          <div class="dvc-top">
+            <img class="dvc-img" src="assets/breather.png" alt="수중 호흡장치">
+            <div class="dvc-name">스마트 수중 호흡장치 <small>Smart Rebreather</small></div>
+            <span class="dvc-badge on">● 연결됨</span>
+          </div>
+          <div class="dvc-specs">
+            <div><span class="dsk2">배터리</span><span class="dvc-batt"><span class="bar"><i style="width:91%"></i></span><span class="dsv2">91%</span></span></div>
+            <div><span class="dsk2">연결 상태</span><span class="dsv2 ok">연결됨 · BLE</span></div>
+            <div><span class="dsk2">센서 상태</span><span class="dsv2 ok">정상 · 산소 농도 정상</span></div>
+            <div><span class="dsk2">마지막 동기화</span><span class="dsv2">1분 전</span></div>
+            <div><span class="dsk2">펌웨어 버전</span><span class="dsv2">v1.2.3</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ tab bar ============ -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab on" data-view="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg><span class="tlabel">Home</span></button>
+      <button class="tab" data-view="live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="12.5" height="11" rx="3"/><path d="M15 10.5l6.5-3.2v9.4L15 13.5"/></svg><span class="tlabel">Live</span></button>
+      <button class="tab" data-view="vital"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 6.6a4.6 4.6 0 0 0-7.8-1.5L12 6l-1-.9A4.6 4.6 0 0 0 3.2 6.6c-1 2.3-.2 4.6 2 7 1.6 1.7 3.9 3.5 6.8 5.6 2.9-2.1 5.2-3.9 6.8-5.6 2.2-2.4 3-4.7 2-7Z"/></svg><span class="tlabel">Vital</span></button>
+      <button class="tab" data-view="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg><span class="tlabel">Dive Log</span></button>
+      <button class="tab" data-view="device"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg><span class="tlabel">Device</span></button>
+    </nav>
+
+    <!-- video overlay (route bubble) -->
+    <div class="vp" id="vp">
+      <video id="vpVideo" src="assets/ocean.mp4" poster="assets/ocean-bg.png" muted loop playsinline></video>
+      <div class="vp-grade"></div>
+      <div class="vp-in">
+        <div class="vp-top"><div class="vp-live"><b></b> Sea-Buddy</div><div class="vp-depth" id="vpDepth">-8 m</div><button class="vp-close" id="vpClose">✕</button></div>
+        <div class="vp-cap" id="vpCap">Sea-Buddy 촬영</div>
+      </div>
+    </div>
+
+    <!-- navigation overlay -->
+    <div class="nav" id="nav">
+      <div class="nav-map">
+        <img class="map" src="assets/reef-map.png" alt="">
+        <div class="nav-mgrade"></div>
+        <svg class="nav-svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="nav-bg" id="navBg" d=""/><path class="nav-done" id="navDone" d=""/></svg>
+        <div class="nav-nextpill" id="navNext"><span class="turn">↱</span><span><span id="navNextName">다음 지점</span> <small id="navNextDist">320 m 앞</small></span></div>
+        <div class="puck" id="puck"><svg viewBox="0 0 24 24"><path d="M12 2 L20 21 L12 16 L4 21 Z" fill="#06283a"/></svg></div>
+      </div>
+      <div class="nav-top"><button class="nav-back" id="navBack">‹</button><div class="nav-title">경로 안내</div></div>
+      <div class="nav-card">
+        <div class="nav-stats"><div class="col"><div class="nk">남은 거리</div><div class="nv" id="navDist">1.4 km</div></div><div class="nsep"></div><div class="col"><div class="nk">예상 도착</div><div class="nv" id="navEta">12:12</div></div></div>
+        <div class="nav-prog"><i id="navProg"></i></div>
+        <button class="nav-stop" id="navStop">안내 종료</button>
+      </div>
+    </div>
+
+    <!-- full calendar overlay -->
+    <div class="dlfull" id="dlFull">
+      <div class="dlfull-head"><button class="dlfull-back" id="dlFullBack">‹</button><div class="dlfull-title" id="dlFullTitle">2026.11</div><div style="width:42px"></div></div>
+      <div class="dlfull-wd"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+      <div class="dlfull-grid" id="dlFullGrid"></div>
+    </div>
+
+    <!-- media gallery overlay (dive log photos/videos) -->
+    <div class="dlfull" id="mediaFull">
+      <div class="dlfull-head"><button class="dlfull-back" id="mfBack">‹</button><div class="dlfull-title" id="mfTitle">사진</div><div style="width:42px"></div></div>
+      <div class="mf-grid" id="mfGrid"></div>
+    </div>
+
+    <!-- vital full calendar overlay -->
+    <div class="dlfull" id="vtFull">
+      <div class="dlfull-head"><button class="dlfull-back" id="vtFullBack">‹</button><div class="dlfull-title" id="vtFullTitle">2026.11</div><div style="width:42px"></div></div>
+      <div class="dlfull-wd"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+      <div class="dlfull-grid" id="vtFullGrid"></div>
+    </div>
+
+    <!-- nearby radar -->
+    <div class="radar" id="radar">
+      <div class="rd-head"><button class="rd-back" id="rdBack">‹</button><div class="rd-title">주변 다이버 찾기<small>위치 레이더 · 반경 300m</small></div></div>
+      <div class="rd-scan" id="rdScan">
+        <img class="rd-map" src="assets/reef-map.png" alt="">
+        <div class="rd-mapfade"></div>
+        <div class="rd-ping"><svg viewBox="-82 -46 164 142" xmlns="http://www.w3.org/2000/svg"><path d="M0,-34 C22,-33 40,-20 54,-6 C64,4 74,2 70,15 C66,26 46,17 30,25 C15,32 6,54 2,74 L0,82 L-2,74 C-6,54 -15,32 -30,25 C-46,17 -66,26 -70,15 C-74,2 -64,4 -54,-6 C-40,-20 -22,-33 0,-34 Z" fill="rgba(31,215,207,0.15)" stroke="rgba(31,215,207,0.6)" stroke-width="2.5"/></svg></div>
+        <div class="rd-ping"><svg viewBox="-82 -46 164 142" xmlns="http://www.w3.org/2000/svg"><path d="M0,-34 C22,-33 40,-20 54,-6 C64,4 74,2 70,15 C66,26 46,17 30,25 C15,32 6,54 2,74 L0,82 L-2,74 C-6,54 -15,32 -30,25 C-46,17 -66,26 -70,15 C-74,2 -64,4 -54,-6 C-40,-20 -22,-33 0,-34 Z" fill="rgba(31,215,207,0.15)" stroke="rgba(31,215,207,0.6)" stroke-width="2.5"/></svg></div>
+        <div class="rd-ping"><svg viewBox="-82 -46 164 142" xmlns="http://www.w3.org/2000/svg"><path d="M0,-34 C22,-33 40,-20 54,-6 C64,4 74,2 70,15 C66,26 46,17 30,25 C15,32 6,54 2,74 L0,82 L-2,74 C-6,54 -15,32 -30,25 C-46,17 -66,26 -70,15 C-74,2 -64,4 -54,-6 C-40,-20 -22,-33 0,-34 Z" fill="rgba(31,215,207,0.15)" stroke="rgba(31,215,207,0.6)" stroke-width="2.5"/></svg></div>
+        <div class="rd-center"></div>
+      </div>
+      <div class="rd-list">
+        <div class="rd-lh">주변 다이버 <b id="rdCount">4</b>명</div>
+        <div id="rdPeople"></div>
+      </div>
+    </div>
+
+    <!-- cancel confirm modal -->
+    <div class="modal" id="modalCancel">
+      <div class="modal-card">
+        <div class="modal-badge" style="background:linear-gradient(160deg,#ffe0dc,#fff0ee)">🚩</div>
+        <div class="modal-t">경로를 취소하겠습니까?</div>
+        <div class="modal-s">진행 중인 경로 안내가 종료되고<br>이번 다이빙이 기록으로 저장돼요.</div>
+        <div class="modal-btns"><button class="mb-ghost" id="cancelNo">계속하기</button><button class="mb-primary" id="cancelYes">종료</button></div>
+      </div>
+    </div>
+
+    <!-- dive summary modal -->
+    <div class="modal" id="modalSummary">
+      <div class="modal-card">
+        <button class="modal-x" id="sumX">✕</button>
+        <div class="modal-badge">🤿</div>
+        <div class="modal-t">다이빙 완료!</div>
+        <div class="modal-s">오늘의 다이빙이 기록되었어요.</div>
+        <div class="modal-sum">
+          <div><div class="msk">다이빙 거리</div><div class="msv" id="sumDist">1.4 km</div></div>
+          <div><div class="msk">다이빙 시간</div><div class="msv" id="sumTime">42분</div></div>
+          <div><div class="msk">최대 수심</div><div class="msv" id="sumDepth">-18 m</div></div>
+        </div>
+        <button class="mb-primary wide" id="goDiveLog">Dive Log 보러가기</button>
+      </div>
+    </div>
+
+    <!-- friend detail overlay -->
+    <div class="fd" id="fd">
+      <video id="fdVideo" src="assets/sea-turtle.mp4" poster="assets/ocean-bg.png" muted loop playsinline></video>
+      <div class="fd-grade"></div>
+      <div class="fd-in">
+        <div class="fd-top">
+          <button class="fd-back" id="fdBack">‹</button>
+          <div class="fd-name" id="fdName">이하나 <small id="fdRole">다이빙 가이드</small></div>
+          <div class="fd-live"><b></b> LIVE</div>
+        </div>
+        <div class="fd-chips">
+          <span class="fdc">📍 <b id="fdLoc">문섬</b></span>
+          <span class="fdc">🌊 수심 <b id="fdDepth">-12 m</b></span>
+          <span class="fdc">🌡️ 수온 <b id="fdWtemp">21°C</b></span>
+        </div>
+        <div class="fd-sp"></div>
+        <div class="fd-health">
+          <div class="h"><div class="hk">❤️ 심박수</div><div class="hv"><span id="fdHr">82</span></div></div>
+          <div class="h"><div class="hk">🫁 호흡</div><div class="hv" id="fdResp">안정</div></div>
+          <div class="h"><div class="hk">🌡️ 체온</div><div class="hv"><span id="fdTemp">36.4</span>°</div></div>
+        </div>
+        <button class="fd-sos" id="fdSos">🆘 SOS 신고</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){ const el=document.getElementById('phone');
+      function fit(){ const d=document.documentElement,w=d.clientWidth||innerWidth,h=d.clientHeight||innerHeight; el.style.transform='scale('+Math.min(w/390,h/844,1)+')'; el.classList.toggle('full',w<520); }
+      fit(); addEventListener('resize',fit); addEventListener('orientationchange',fit); if(window.visualViewport)visualViewport.addEventListener('resize',fit); addEventListener('load',fit); requestAnimationFrame(fit);
+    })();
+    const $=id=>document.getElementById(id);
+    const pad2=n=>String(n).padStart(2,'0');
+    const WD=['일','월','화','수','목','금','토'], C=2*Math.PI*17;
+    const isoD=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+    const phone=$('phone'), hint=$('hint');
+    let hintTimer=setTimeout(()=>hint.classList.add('hide'),3600);
+    function showHint(t,ms){ hint.textContent=t; hint.classList.remove('hide'); clearTimeout(hintTimer); if(ms)hintTimer=setTimeout(()=>hint.classList.add('hide'),ms); }
+
+    // ---- route data ----
+    const RECOMMENDED=[{x:22,y:30,depth:'-6 m',zone:'입수 지점'},{x:33,y:40,depth:'-8 m',zone:'북쪽 암초'},{x:47,y:56,depth:'-15 m',zone:'중앙 수로'},{x:66,y:47,depth:'-18 m',zone:'동쪽 절벽'},{x:78,y:40,depth:'-12 m',zone:'출수 지점'}];
+    const DEPTHS=[6,9,13,16,18,14,11,8,15,12];
+    function buildPts(c){ return c.map((p,i)=>({x:p[0],y:p[1],depth:'-'+DEPTHS[Math.min(i,DEPTHS.length-1)]+' m',zone:i===0?'입수 지점':(i===c.length-1?'출수 지점':'지점 '+i)})); }
+    let myRoute=[];   // hidden at first start
+    let routeSeq=0, savedListType='recent';
+    let savedRoutes=[
+      {name:'문섬 북쪽 코스', pts:buildPts([[22,30],[33,40],[47,56],[66,47],[78,40]]), fav:true},
+      {name:'중앙 수로 코스', pts:buildPts([[26,34],[40,44],[52,58],[64,50]]), fav:false},
+      {name:'동쪽 절벽 코스', pts:buildPts([[30,28],[48,38],[62,46],[72,58]]), fav:true},
+      {name:'라군 순환 코스', pts:buildPts([[34,36],[46,30],[60,38],[66,52],[50,58]]), fav:false}
+    ];
+    function smoothPath(pts){ if(pts.length<2)return pts.length?'M'+pts[0].x+','+pts[0].y:''; let d='M'+pts[0].x+','+pts[0].y;
+      for(let i=0;i<pts.length-1;i++){ const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];
+        const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;
+        d+=' C'+c1x.toFixed(1)+','+c1y.toFixed(1)+' '+c2x.toFixed(1)+','+c2y.toFixed(1)+' '+p2.x+','+p2.y; } return d; }
+    function routeStats(pts){ let dist=0; for(let i=1;i<pts.length;i++)dist+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y)*0.02; let m=0; pts.forEach(p=>{const v=Math.abs(parseFloat(p.depth))||0; if(v>m)m=v;}); return {dist,maxD:m,time:Math.max(1,Math.round(dist*22))}; }
+
+    // ---- marine scenery video pool (varied per place) ----
+    const SCENERY=['assets/sea-reef.mp4','assets/sea-turtle.mp4','assets/sea-school.mp4','assets/ocean.mp4','assets/bg-underwater.mp4'];
+    function pickVid(seed){ return SCENERY[Math.abs(Math.round(seed))%SCENERY.length]; }
+
+    // ---- video overlay ----
+    const vp=$('vp'), vpVideo=$('vpVideo');
+    function openVideo(p){ const src=pickVid(p.x*2+p.y); if(vpVideo.dataset.src!==src){ vpVideo.dataset.src=src; vpVideo.src=src; } $('vpDepth').textContent=p.depth; $('vpCap').textContent=p.zone+' · Sea-Buddy 촬영'; vp.classList.add('open'); vpVideo.play().catch(()=>{}); }
+    $('vpClose').addEventListener('click',()=>{ vp.classList.remove('open'); vpVideo.pause(); });
+
+    // ---- explore render ----
+    const exploreLayer=$('exploreLayer'), rpath=$('rpath'), rpathBg=$('rpathBg'), startBtn=$('startBtn');
+    function renderExplore(){
+      const has=myRoute.length>=2, d=has?smoothPath(myRoute):'';
+      rpath.setAttribute('d',d); rpathBg.setAttribute('d',d); exploreLayer.innerHTML='';
+      if(has) myRoute.forEach((p,i)=>{
+        if(i===0||i===myRoute.length-1){ const m=document.createElement('div'); m.className='marker '+(i===0?'start':'end'); m.style.left=p.x+'%'; m.style.top=p.y+'%'; exploreLayer.appendChild(m); }
+        else { const b=document.createElement('button'); b.className='bubble'; b.style.left=p.x+'%'; b.style.top=p.y+'%'; b.innerHTML='<span class="play"></span>'+p.depth; b.addEventListener('click',ev=>{ev.stopPropagation();openVideo(p);}); exploreLayer.appendChild(b); }
+      });
+      const st=has?routeStats(myRoute):{dist:0,maxD:0,time:0};
+      $('exDist').textContent=has?st.dist.toFixed(1):'–'; $('exDepth').textContent=has?st.maxD:'–'; $('exTime').textContent=has?st.time:'–';
+      startBtn.disabled=!has;
+    }
+    const ghostLayer=$('ghostLayer'), gpath=$('gpath');
+    function renderGhost(){ gpath.setAttribute('d',smoothPath(RECOMMENDED)); ghostLayer.innerHTML=''; RECOMMENDED.forEach(p=>{ const g=document.createElement('div'); g.className='ghost-dot'; g.style.left=p.x+'%'; g.style.top=p.y+'%'; g.innerHTML='<span class="st">✦</span>'+p.depth; ghostLayer.appendChild(g); }); }
+    renderExplore(); renderGhost();
+
+    // ---- saved routes ----
+    const savedRow=$('savedRow');
+    function renderSaved(){ const list=savedListType==='fav'?savedRoutes.filter(r=>r.fav):savedRoutes; savedRow.innerHTML='';
+      if(!list.length){ savedRow.innerHTML='<div class="saved-empty">'+(savedListType==='fav'?'즐겨찾기한 경로가 없어요':'저장된 경로가 없어요')+'</div>'; return; }
+      list.forEach(r=>{ const st=routeStats(r.pts); const c=document.createElement('button'); c.className='rchip';
+        c.innerHTML='<span class="rc-star'+(r.fav?' on':'')+'">★</span><span class="rc-name">'+r.name+'</span><span class="rc-meta">'+st.dist.toFixed(1)+' km · '+r.pts.length+'지점</span>';
+        c.querySelector('.rc-star').addEventListener('click',e=>{e.stopPropagation();r.fav=!r.fav;renderSaved();});
+        c.addEventListener('click',()=>{ myRoute=r.pts.map(p=>({...p})); renderExplore(); setMode('explore'); showHint('‘'+r.name+'’ 경로를 불러왔어요',2600); });
+        savedRow.appendChild(c); }); }
+    document.querySelectorAll('#savedTabs button').forEach(b=>b.addEventListener('click',()=>{ savedListType=b.dataset.list; document.querySelectorAll('#savedTabs button').forEach(x=>x.classList.toggle('on',x===b)); renderSaved(); }));
+
+    // ---- zoom ----
+    const mapstage=$('mapstage'), zoomIn=$('zoomIn'), zoomOut=$('zoomOut'); let z=1.3; const ZMIN=1.0,ZMAX=2.8;
+    function applyZoom(){ mapstage.style.transform='scale('+z.toFixed(3)+')'; zoomIn.disabled=z>=ZMAX-.001; zoomOut.disabled=z<=ZMIN+.001; }
+    zoomIn.addEventListener('click',()=>{z=Math.min(ZMAX,z+0.35);applyZoom();});
+    zoomOut.addEventListener('click',()=>{z=Math.max(ZMIN,z-0.35);applyZoom();});
+    mapstage.addEventListener('wheel',e=>{e.preventDefault();z=Math.max(ZMIN,Math.min(ZMAX,z-Math.sign(e.deltaY)*0.2));applyZoom();},{passive:false});
+    applyZoom();
+
+    // ---- draggable sheet (moves toggle + content together) ----
+    const sheetCard=$('card'), sheetGrab=$('sheetGrab');
+    let shDrag=false,shSy=0,shSt=0,shCur=0,shMoved=0;
+    const shMax=()=>Math.max(0, sheetCard.offsetHeight-104);
+    function shSet(t){ shCur=t; sheetCard.style.transform='translateY('+t+'px)'; }
+    function resetSheet(){ sheetCard.style.transition='transform .32s cubic-bezier(.4,0,.2,1)'; shSet(0); }
+    function shDown(e){ shDrag=true; shMoved=0; shSy=(e.touches?e.touches[0].clientY:e.clientY); shSt=shCur; sheetCard.style.transition='none'; if(e.cancelable)e.preventDefault(); }
+    function shMove(e){ if(!shDrag)return; const y=(e.touches?e.touches[0].clientY:e.clientY); shMoved=Math.max(shMoved,Math.abs(y-shSy)); shSet(Math.max(0,Math.min(shMax(),shSt+(y-shSy)))); }
+    function shUp(){ if(!shDrag)return; shDrag=false; sheetCard.style.transition='transform .32s cubic-bezier(.4,0,.2,1)'; const m=shMax(); if(shMoved<6)shSet(shCur>m/2?0:m); else shSet(shCur>m*0.4?m:0); }
+    sheetGrab.addEventListener('mousedown',shDown); sheetGrab.addEventListener('touchstart',shDown,{passive:false});
+    addEventListener('mousemove',shMove); addEventListener('touchmove',shMove,{passive:false}); addEventListener('mouseup',shUp); addEventListener('touchend',shUp);
+
+    // ---- mode toggle + create ----
+    const cpath=$('cpath'), cpoints=$('cpoints'), undoBtn=$('undoBtn'), doneBtn=$('doneBtn');
+    let mode='explore', pts=[];
+    function setMode(m){ mode=m; resetSheet();
+      document.querySelectorAll('#modeToggle button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+      const creating=m==='create'; mapstage.style.cursor=creating?'crosshair':'';
+      exploreLayer.classList.toggle('hide',creating); rpath.style.opacity=creating?0:1; rpathBg.style.opacity=creating?0:1;
+      ghostLayer.classList.toggle('hide',!creating); gpath.classList.toggle('show',creating);
+      $('paneExplore').classList.toggle('on',!creating); $('paneCreate').classList.toggle('on',creating);
+      if(creating){ pts=[]; renderCreate(); renderSaved(); showHint('추천 경로를 참고해 지도를 탭하세요',0); doneBtn.textContent='경로 저장'; }
+      else showHint(myRoute.length?'지점을 탭하면 Sea-Buddy 영상을 볼 수 있어요':'경로를 만들거나 불러오면 여기에 표시돼요',2600);
+    }
+    document.querySelectorAll('#modeToggle button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+    function renderCreate(){ cpoints.innerHTML=''; pts.forEach((p,i)=>{ const d=document.createElement('div'); d.className='cpoint'; d.style.left=p.x+'%'; d.style.top=p.y+'%'; d.textContent=i+1; cpoints.appendChild(d); });
+      cpath.setAttribute('d',smoothPath(pts)); const st=routeStats(pts); $('cCount').textContent=pts.length; $('cDist').textContent=st.dist.toFixed(1); $('cTime').textContent=pts.length>1?st.time:0; undoBtn.disabled=pts.length===0; }
+    mapstage.addEventListener('click',e=>{ if(mode!=='create')return; const r=mapstage.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width*100,y=(e.clientY-r.top)/r.height*100; if(x<2||x>98||y<2||y>98)return; pts.push({x:+x.toFixed(1),y:+y.toFixed(1)}); hint.classList.add('hide'); renderCreate(); });
+    undoBtn.addEventListener('click',()=>{ pts.pop(); renderCreate(); });
+    doneBtn.addEventListener('click',()=>{ if(pts.length<2){ showHint('포인트를 2개 이상 찍어주세요',2200); return; }
+      myRoute=pts.map((p,i)=>({x:p.x,y:p.y,depth:'-'+DEPTHS[Math.min(i,DEPTHS.length-1)]+' m',zone:i===0?'입수 지점':(i===pts.length-1?'출수 지점':'지점 '+i)}));
+      savedRoutes.unshift({name:'내 경로 '+(++routeSeq),pts:myRoute.map(p=>({...p})),fav:false});
+      cpath.setAttribute('d',''); cpoints.innerHTML=''; pts=[]; renderExplore(); setMode('explore'); showHint('내 경로가 저장됐어요 · 지점을 탭해 영상을 확인하세요',3000); });
+
+    // ---- navigation ----
+    const nav=$('nav'), navBg=$('navBg'), navDone=$('navDone'), puck=$('puck'), navMap=nav.querySelector('.nav-map');
+    const START_MIN=9*60+41, NAV_DUR=16000; let navRAF=null, navStart=0, navTotalKm=1.4, navTotalMin=42;
+    function frame(now){ if(!navStart)navStart=now; const tt=Math.min((now-navStart)/NAV_DUR,1); const L=navBg.getTotalLength();
+      const p=navBg.getPointAtLength(tt*L), p2=navBg.getPointAtLength(Math.min(tt+0.006,1)*L);
+      puck.style.left=p.x+'%'; puck.style.top=p.y+'%'; const w=navMap.clientWidth||390,h=navMap.clientHeight||600;
+      puck.style.setProperty('--r',(Math.atan2((p2.y-p.y)*h,(p2.x-p.x)*w)*180/Math.PI+90).toFixed(1)+'deg');
+      navDone.style.strokeDasharray=L; navDone.style.strokeDashoffset=(L*(1-tt)).toFixed(2);
+      const rem=Math.max(0,navTotalKm*(1-tt)); $('navDist').textContent=rem.toFixed(1)+' km'; $('navProg').style.width=(tt*100).toFixed(1)+'%';
+      const arr=START_MIN+navTotalMin; $('navEta').textContent=pad2(Math.floor(arr/60)%24)+':'+pad2(arr%60); $('navNextDist').textContent=Math.max(0,Math.round(rem*1000*0.45))+' m 앞';
+      if(tt<1)navRAF=requestAnimationFrame(frame); else { $('navNextName').textContent='목적지 도착'; $('navNextDist').textContent='완료'; } }
+    startBtn.addEventListener('click',()=>{ if(myRoute.length<2)return; const d=smoothPath(myRoute); navBg.setAttribute('d',d); navDone.setAttribute('d',d); const st=routeStats(myRoute); navTotalKm=st.dist; navTotalMin=st.time; $('navNextName').textContent=myRoute[1]?myRoute[1].zone:'경로'; nav.classList.add('open'); navStart=0; cancelAnimationFrame(navRAF); navRAF=requestAnimationFrame(frame); });
+    function endNav(){ nav.classList.remove('open'); cancelAnimationFrame(navRAF); }
+    $('navBack').addEventListener('click',endNav);
+    $('navStop').addEventListener('click',()=>$('modalCancel').classList.add('open'));
+    $('cancelNo').addEventListener('click',()=>$('modalCancel').classList.remove('open'));
+    $('cancelYes').addEventListener('click',()=>{
+      $('modalCancel').classList.remove('open');
+      const md=myRoute.length?Math.max.apply(null,myRoute.map(p=>Math.abs(parseFloat(p.depth))||0)):18;
+      $('sumDist').textContent=navTotalKm.toFixed(1)+' km'; $('sumTime').textContent=navTotalMin+'분'; $('sumDepth').textContent='-'+md+' m';
+      $('modalSummary').classList.add('open');
+    });
+    $('sumX').addEventListener('click',()=>{ $('modalSummary').classList.remove('open'); endNav(); });
+    $('goDiveLog').addEventListener('click',()=>{ $('modalSummary').classList.remove('open'); endNav(); showView('log'); });
+
+    // ---- view switching ----
+    const liveVideo=$('liveVideo');
+    function showView(name){
+      document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+name));
+      document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.view===name));
+      phone.classList.toggle('light', name==='vital'||name==='device'||name==='log');
+      $('tabbar').classList.toggle('dark', name==='live');
+      if(name==='live'){ liveVideo.play().catch(()=>{}); } else liveVideo.pause();
+    }
+    document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>showView(t.dataset.view)));
+
+    // ---- live: rec + share toggle ----
+    const shareToggle=$('shareToggle');
+    shareToggle.addEventListener('click',()=>{ const on=shareToggle.classList.toggle('on'); $('shareState').textContent=on?'친구 3명에게 공유 중':'공유 꺼짐'; });
+    let recOn=true, recSec=12, recTimer=setInterval(()=>{ if(recOn){ recSec++; $('liveTime').textContent=pad2(Math.floor(recSec/60))+':'+pad2(recSec%60); } },1000);
+    $('liveRecBtn').addEventListener('click',()=>{ recOn=!recOn; const i=$('liveRecBtn').querySelector('i'); i.style.borderRadius=recOn?'8px':'50%'; i.style.width=recOn?'28px':'24px'; i.style.height=recOn?'28px':'24px'; $('liveRec').classList.toggle('paused',!recOn); if(!recOn){ recSec=0; $('liveTime').textContent='00:00'; } });
+
+    // ---- vital: friends ----
+    const FRIENDS=[
+      {name:'이하나', role:'다이빙 가이드', badge:'다이빙 중 · -12m', warn:false, hr:82, resp:'안정', temp:'36.4', depth:'-12 m', wtemp:'21°C', loc:'문섬', dist:40, video:'assets/sea-turtle.mp4'},
+      {name:'박도윤', role:'다이브 버디', badge:'다이빙 중 · -9m', warn:false, hr:88, resp:'다소 빠름', temp:'36.1', depth:'-9 m', wtemp:'22°C', loc:'섶섬', dist:8, video:'assets/sea-school.mp4'},
+      {name:'김서준', role:'보호자', badge:'수면 대기', warn:false, atSurface:true, hr:74, resp:'안정', temp:'36.6', depth:'0 m', wtemp:'24°C', loc:'서귀포항', dist:120, video:'assets/bg-underwater.mp4'},
+      {name:'최유리', role:'다이브 버디', badge:'주의 · 심박 상승', warn:true, reason:'심박 급상승 (121 bpm)', hr:121, resp:'빠름', temp:'36.9', depth:'-18 m', wtemp:'19°C', loc:'문섬 북벽', dist:260, video:'assets/ocean.mp4'}
+    ];
+    document.querySelectorAll('#vtSeg button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('#vtSeg button').forEach(x=>x.classList.toggle('on',x===b)); $('vtToday').classList.toggle('on',b.dataset.vt==='today'); $('vtPast').classList.toggle('on',b.dataset.vt==='past'); }));
+
+    // friends list — 검색 / 가까운 친구 정렬 / 수면 대기 클릭 불가 / 위험 강조
+    const friendList=$('friendList');
+    let searchQ='', nearbyMode=false;
+    function renderFriends(){
+      let list=FRIENDS.filter(f=>f.name.includes(searchQ));
+      if(nearbyMode) list=[...list].sort((a,b)=>a.dist-b.dist);
+      friendList.innerHTML='';
+      if(!list.length){ friendList.innerHTML='<div class="friend-empty">검색 결과가 없어요</div>'; return; }
+      list.forEach(f=>{ const el=document.createElement('div'); el.className='friend'+(f.atSurface?' off':'')+(f.warn?' danger':'');
+        const info = nearbyMode ? '📍 '+f.dist+' m' : '❤ '+f.hr+' bpm';
+        el.innerHTML='<div class="fav">🤿</div><div><div class="fn">'+f.name+'</div><div class="fr">'+f.role+'</div></div><div class="fstat"><div class="fbadge'+(f.warn?' warn':'')+'">'+f.badge+'</div><div class="fhr">'+info+'</div></div>';
+        if(!f.atSurface) el.addEventListener('click',()=>openFriend(f));
+        friendList.appendChild(el); });
+    }
+    $('friendSearch').addEventListener('input',e=>{ searchQ=e.target.value.trim(); renderFriends(); });
+    $('nearbyBtn').addEventListener('click',()=>openRadar());
+    renderFriends();
+
+    // 위험 상황 알람
+    const dangerF=FRIENDS.find(f=>f.warn);
+    if(dangerF){ const al=$('vtAlarm'); al.style.display='flex';
+      al.innerHTML='<span class="ai">🚨</span><span class="atxt"><span class="at">'+dangerF.name+'님 위험 감지</span><span class="as">'+dangerF.reason+'</span><span class="atap">눌러서 확인 ›</span></span>';
+      al.addEventListener('click',()=>openFriend(dangerF)); if(navigator.vibrate)navigator.vibrate([140,70,140]); }
+
+    // 지난 기록 달력 (날짜 클릭 → 그날 상태)
+    const VITAL={};
+    [['2026-11-08',.15,72,'안정',36.5,'짧고 가벼운 다이빙이었어요. 입수 직후부터 심박과 호흡이 금방 안정 범위로 들어왔고, 수심이 얕아 몸에 부담이 거의 없었습니다. 전반적으로 편안한 컨디션이었어요.'],
+     ['2026-11-10',.55,80,'안정',36.6,'중간 강도의 다이빙으로 컨디션이 좋았어요. 하강·상승 모두 완만했고 심박 변동이 크지 않아 안정적이었습니다. 체온도 정상 범위를 잘 유지했어요.'],
+     ['2026-11-13',.7,86,'다소 빠름',36.7,'중반 15분 무렵 심박이 잠깐 올라갔어요. 조류가 있던 구간에서 호흡이 약간 빨라졌지만 곧 회복됐고, 위험 수준은 아니었습니다. 다음엔 그 구간에서 페이스를 조금 늦춰보세요.'],
+     ['2026-11-16',.85,92,'빠름',36.8,'다소 힘들었던 다이빙이에요. 급상승이 1회 감지됐고 그 직후 심박이 크게 올라 스트레스 지표가 높았습니다. 안전정지는 지켰지만, 상승 속도를 더 천천히 가져가는 게 좋겠어요.'],
+     ['2026-11-19',.95,78,'안정',36.5,'이번 달 중 가장 안정적인 다이빙이었어요. 심박·호흡이 처음부터 끝까지 고르게 유지됐고 급상승도 없었습니다. 공기 소모율도 낮아 컨디션이 아주 좋았어요.'],
+     ['2026-11-22',.65,84,'안정',36.6,'호흡 리듬이 일정하고 편안했던 다이빙이에요. 심박은 평균보다 약간 높았지만 안정 범위 안이었고, 체온 변화도 완만했습니다.'],
+     ['2026-11-25',.55,80,'안정',36.5,'무리 없이 마친 다이빙이에요. 중간중간 휴식을 잘 가져가 심박이 안정적이었고, 전반적으로 여유로운 페이스였습니다.'],
+     ['2026-11-28',.5,76,'안정',36.4,'짧지만 컨디션이 좋았던 다이빙이에요. 수온이 조금 낮아 체온이 소폭 내려갔지만 정상 범위였고, 심박·호흡 모두 안정적이었습니다.']]
+      .forEach(a=>VITAL[a[0]]={ring:a[1],hr:a[2],resp:a[3],temp:a[4],note:a[5]});
+    let vtView=new Date(2026,10,19), vtSel='2026-11-19';
+    function vtCell(date){ const key=isoD(date), info=VITAL[key], cell=document.createElement('button');
+      cell.className='dl-day'+(date.getDay()===0?' sun':'')+(date.getDay()===6?' sat':'')+(info?'':' empty')+(key===vtSel?' on':'');
+      const off=C*(1-(info?info.ring:0));
+      cell.innerHTML='<span class="dl-wd">'+WD[date.getDay()]+'</span><span class="dl-ringwrap"><svg class="dl-ring" viewBox="0 0 40 40"><circle class="drbg" cx="20" cy="20" r="17"/><circle class="drfg" cx="20" cy="20" r="17" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg><span class="dl-num">'+date.getDate()+'</span></span>';
+      cell.addEventListener('click',()=>{ vtSel=key; vtView=new Date(date); renderVtWeek(); updateVtDay(); if(vtFull.classList.contains('open'))vtFull.classList.remove('open'); });
+      return cell; }
+    function renderVtWeek(){ const sun=new Date(vtView); sun.setDate(vtView.getDate()-vtView.getDay());
+      $('vtMonth').textContent=sun.getFullYear()+'.'+pad2(sun.getMonth()+1);
+      const wk=$('vtWeek'); wk.innerHTML=''; for(let i=0;i<7;i++){ const d=new Date(sun); d.setDate(sun.getDate()+i); wk.appendChild(vtCell(d)); } }
+    function updateVtDay(){ const info=VITAL[vtSel], det=$('vtDayDetail'), emp=$('vtDayEmpty');
+      if(!info){ det.style.display='none'; emp.style.display='block'; return; }
+      det.style.display='block'; emp.style.display='none'; const dt=new Date(vtSel);
+      $('vtDate').textContent=(dt.getMonth()+1)+'월 '+dt.getDate()+'일';
+      const rr={'안정':14,'다소 빠름':17,'빠름':20}[info.resp]||14;
+      $('vtHrAvg').textContent=info.hr; $('vtHrMax').textContent=info.hr+14; $('vtHrMin').textContent=info.hr-12;
+      $('vtRespState').textContent=info.resp; $('vtRespRate').textContent=rr;
+      $('vtTempAvg').textContent=info.temp.toFixed(1); $('vtTempMax').textContent=(info.temp+0.3).toFixed(1); $('vtTempMin').textContent=(info.temp-0.4).toFixed(1);
+      $('vtNote').textContent=info.note; }
+    $('vtPrev').addEventListener('click',()=>{ vtView.setDate(vtView.getDate()-7); renderVtWeek(); });
+    $('vtNext').addEventListener('click',()=>{ vtView.setDate(vtView.getDate()+7); renderVtWeek(); });
+    const vtFull=$('vtFull');
+    function renderVtFull(){ const y=vtView.getFullYear(), m=vtView.getMonth(); $('vtFullTitle').textContent=y+'.'+pad2(m+1);
+      const start=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate(), grid=$('vtFullGrid'); grid.innerHTML='';
+      for(let i=0;i<start;i++)grid.appendChild(document.createElement('div'));
+      for(let d=1;d<=days;d++)grid.appendChild(vtCell(new Date(y,m,d))); }
+    $('vtAll').addEventListener('click',()=>{ renderVtFull(); vtFull.classList.add('open'); });
+    $('vtFullBack').addEventListener('click',()=>vtFull.classList.remove('open'));
+    renderVtWeek(); updateVtDay();
+
+    // ---- friend detail overlay ----
+    const fd=$('fd'), fdVideo=$('fdVideo'), fdSos=$('fdSos');
+    function openFriend(f){ $('fdName').firstChild.textContent=f.name+' '; $('fdRole').textContent=f.role; $('fdHr').textContent=f.hr; $('fdResp').textContent=f.resp; $('fdTemp').textContent=f.temp; $('fdLoc').textContent=f.loc; $('fdDepth').textContent=f.depth; $('fdWtemp').textContent=f.wtemp;
+      if(fdVideo.dataset.src!==f.video){ fdVideo.dataset.src=f.video; fdVideo.src=f.video; }
+      fdSos.classList.remove('sent'); fdSos.textContent='🆘 SOS 신고'; fd.classList.add('open'); fdVideo.play().catch(()=>{}); }
+    $('fdBack').addEventListener('click',()=>{ fd.classList.remove('open'); fdVideo.pause(); });
+    fdSos.addEventListener('click',()=>{ fdSos.classList.add('sent'); fdSos.textContent='✓ SOS 신고 전송됨 · 구조센터 연결 중'; if(navigator.vibrate)navigator.vibrate([200,100,200]); });
+
+    // ---- nearby radar (가오리 레이더) ----
+    const radar=$('radar');
+    function openRadar(){ renderRadar(); radar.classList.add('open'); }
+    $('rdBack').addEventListener('click',()=>radar.classList.remove('open'));
+    function renderRadar(){
+      const scan=$('rdScan'); scan.querySelectorAll('.rd-pin').forEach(n=>n.remove());
+      const near=[...FRIENDS].sort((a,b)=>a.dist-b.dist);
+      $('rdCount').textContent=near.length;
+      const pos=[[52,32],[76,52],[28,56],[64,76],[38,42]];
+      near.forEach((f,i)=>{ const p=pos[i%pos.length]; const pin=document.createElement('div'); pin.className='rd-pin'+(f.warn?' warn':''); pin.style.left=p[0]+'%'; pin.style.top=p[1]+'%'; pin.style.animationDelay=(i*.15)+'s';
+        pin.innerHTML='<div class="pav">🤿</div><div class="plabel">'+f.name+' · '+f.dist+'m</div>';
+        if(!f.atSurface) pin.addEventListener('click',()=>{ radar.classList.remove('open'); openFriend(f); });
+        scan.appendChild(pin); });
+      const list=$('rdPeople'); list.innerHTML='';
+      near.forEach(f=>{ const el=document.createElement('div'); el.className='rd-person';
+        el.innerHTML='<div class="rpav">🤿</div><div class="rp-txt"><div class="rpn">'+f.name+'</div><div class="rpi">📍 '+f.loc+' · '+f.dist+'m</div></div><div class="rpbtns"><button class="rpbtn share">공유</button><button class="rpbtn live">라이브</button></div>';
+        el.querySelector('.share').addEventListener('click',()=>{ const b=el.querySelector('.share'); const on=b.classList.toggle('done'); b.textContent=on?'공유됨 ✓':'공유'; });
+        el.querySelector('.live').addEventListener('click',()=>{
+          const shareBtn=el.querySelector('.share'), liveBtn=el.querySelector('.live');
+          if(shareBtn.classList.contains('done') || el.dataset.accepted==='1'){ radar.classList.remove('open'); openFriend(f); return; }
+          if(el.dataset.requested==='1') return;
+          el.dataset.requested='1'; liveBtn.textContent='요청 중…'; liveBtn.classList.add('req');
+          setTimeout(()=>{ liveBtn.textContent='수락됨 ✓'; setTimeout(()=>{ el.dataset.requested='0'; el.dataset.accepted='1'; liveBtn.textContent='라이브'; liveBtn.classList.remove('req'); },1000); },2400);
+        });
+        list.appendChild(el); });
+    }
+
+    // ---- dive log (weekly ring calendar + records + full calendar) ----
+    const DIVE={}, LOCS=['문섬','섶섬','범섬','문섬 북벽','서귀포 앞바다'];
+    [['2026-11-08',.15,4,1],['2026-11-09',.4,6,2],['2026-11-10',.55,9,3],['2026-11-11',.3,5,1],['2026-11-13',.7,12,4],['2026-11-14',.35,7,2],['2026-11-15',.5,8,3],['2026-11-16',.85,15,5],['2026-11-17',.6,10,3],['2026-11-18',.45,6,2],['2026-11-19',.95,18,6],['2026-11-20',.4,7,2],['2026-11-22',.65,11,4],['2026-11-23',.5,9,3],['2026-11-24',.7,13,4],['2026-11-25',.55,8,3],['2026-11-26',.6,10,3],['2026-11-27',.35,5,2],['2026-11-28',.5,9,3]]
+      .forEach((a,i)=>{ const r=a[1]; DIVE[a[0]]={ring:r,photos:a[2],videos:a[3],loc:LOCS[i%LOCS.length],time:18+Math.round(r*24),maxD:Math.round(8+r*14),avgD:Math.round(5+r*8),dist:Math.round(180+r*380),speed:(10+r*6).toFixed(0)}; });
+    let dlView=new Date(2026,10,19), dlSel='2026-11-19';
+    const dlFull=$('dlFull');
+    function dayCell(date,withWd){
+      const key=isoD(date), info=DIVE[key], cell=document.createElement('button');
+      cell.className='dl-day'+(date.getDay()===0?' sun':'')+(date.getDay()===6?' sat':'')+(info?'':' empty')+(key===dlSel?' on':'');
+      const off=C*(1-(info?info.ring:0));
+      cell.innerHTML=(withWd?'<span class="dl-wd">'+WD[date.getDay()]+'</span>':'')+'<span class="dl-ringwrap"><svg class="dl-ring" viewBox="0 0 40 40"><circle class="drbg" cx="20" cy="20" r="17"/><circle class="drfg" cx="20" cy="20" r="17" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg><span class="dl-num">'+date.getDate()+'</span></span>';
+      cell.addEventListener('click',()=>{ dlSel=key; dlView=new Date(date); renderWeek(); updateDetail(); if(dlFull.classList.contains('open'))dlFull.classList.remove('open'); });
+      return cell;
+    }
+    function renderWeek(){ const sun=new Date(dlView); sun.setDate(dlView.getDate()-dlView.getDay());
+      $('dlMonth').textContent=sun.getFullYear()+'.'+pad2(sun.getMonth()+1);
+      const wk=$('dlWeek'); wk.innerHTML=''; for(let i=0;i<7;i++){ const d=new Date(sun); d.setDate(sun.getDate()+i); wk.appendChild(dayCell(d,true)); } }
+    function fillRow(row,n,vid){ row.innerHTML=''; for(let i=0;i<Math.min(n,8);i++){ const t=document.createElement('div'); t.className='dl-thumb'+(vid?' vid':''); t.innerHTML='<img src="assets/ocean-bg.png" alt="">'+(vid?'<div class="tp"></div>':''); row.appendChild(t); } }
+    function updateDetail(){ const info=DIVE[dlSel], det=$('dlDetail'), emp=$('dlEmpty');
+      if(!info){ det.style.display='none'; emp.style.display='block'; return; }
+      det.style.display='block'; emp.style.display='none'; const dt=new Date(dlSel);
+      $('dlDate').textContent=(dt.getMonth()+1)+'월 '+dt.getDate()+'일';
+      $('dlLoc').textContent=info.loc; $('dlTime').textContent=info.time; $('dlMaxD').textContent=info.maxD; $('dlAvgD').textContent=info.avgD; $('dlDist').textContent=info.dist; $('dlSpeed').textContent=info.speed;
+      $('dlPhotoN').textContent=info.photos; $('dlVideoN').textContent=info.videos;
+      fillRow($('dlPhotos'),info.photos,false); fillRow($('dlVideos'),info.videos,true); }
+    $('dlPrev').addEventListener('click',()=>{ dlView.setDate(dlView.getDate()-7); renderWeek(); });
+    $('dlNext').addEventListener('click',()=>{ dlView.setDate(dlView.getDate()+7); renderWeek(); });
+    function renderFull(){ const y=dlView.getFullYear(), m=dlView.getMonth(); $('dlFullTitle').textContent=y+'.'+pad2(m+1);
+      const start=new Date(y,m,1).getDay(), days=new Date(y,m+1,0).getDate(), grid=$('dlFullGrid'); grid.innerHTML='';
+      for(let i=0;i<start;i++)grid.appendChild(document.createElement('div'));
+      for(let d=1;d<=days;d++)grid.appendChild(dayCell(new Date(y,m,d),false)); }
+    $('dlAll').addEventListener('click',()=>{ renderFull(); dlFull.classList.add('open'); });
+    $('dlFullBack').addEventListener('click',()=>dlFull.classList.remove('open'));
+    const mediaFull=$('mediaFull');
+    function openMedia(type){ const info=DIVE[dlSel]; if(!info)return; const n=type==='video'?info.videos:info.photos;
+      $('mfTitle').textContent=(type==='video'?'영상':'사진')+' '+n+'개';
+      const grid=$('mfGrid'); grid.innerHTML='';
+      for(let i=0;i<n;i++){ const t=document.createElement('div'); t.className='dl-thumb'+(type==='video'?' vid':''); t.innerHTML='<img src="assets/ocean-bg.png" alt="">'+(type==='video'?'<div class="tp"></div>':''); grid.appendChild(t); }
+      mediaFull.classList.add('open'); }
+    $('dlPhotoAll').addEventListener('click',()=>openMedia('photo'));
+    $('dlVideoAll').addEventListener('click',()=>openMedia('video'));
+    $('mfBack').addEventListener('click',()=>mediaFull.classList.remove('open'));
+    renderWeek(); updateDetail();
+  </script>
+</body>
+</html>

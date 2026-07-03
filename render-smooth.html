@@ -1,0 +1,168 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>스무딩 렌더</title>
+<script type="importmap">
+{ "imports": { "three": "./assets/vendor/three.module.js" } }
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; background:#0a1622; color:#cfe6ff; font:14px system-ui; }
+  #status { padding:16px 20px; color:#7ec8ff; }
+  #gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; padding:20px; }
+  figure { background:#101f30; border-radius:12px; padding:10px; text-align:center; }
+  figure img { width:100%; border-radius:8px;
+    background:
+      linear-gradient(45deg,#1b2c40 25%,transparent 25%,transparent 75%,#1b2c40 75%) 0 0/20px 20px,
+      linear-gradient(45deg,#1b2c40 25%,#152438 25%,#152438 75%,#1b2c40 75%) 10px 10px/20px 20px; }
+  figcaption { margin-top:6px; }
+</style>
+
+<div id="status">초기화…</div>
+<div id="gallery"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from './assets/vendor/GLTFLoader.js';
+import { mergeVertices } from './assets/vendor/BufferGeometryUtils.js';
+import { RoomEnvironment } from './assets/vendor/RoomEnvironment.js';
+
+const statusEl = document.getElementById('status');
+const gallery = document.getElementById('gallery');
+const setStatus = t => { statusEl.textContent = t; window.__status = t; };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+const W = 1200, H = 1200;
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+// 매끈한 로봇 화이트 재질 (양면 → 작은 구멍의 검은 속이 안 보이게)
+const mat = new THREE.MeshStandardMaterial({
+  color: 0xffffff, roughness: 0.68, metalness: 0.0,
+  side: THREE.DoubleSide, envMapIntensity: 0.55,
+});
+
+// ---- Taubin 스무딩 (수축 없는 라플라시안) ----
+function smoothGeometry(geo, iterations, lambda, mu) {
+  let g = geo.index ? geo : mergeVertices(geo);
+  g = mergeVertices(g);                 // 위치 기준 정점 용접
+  const pos = g.attributes.position;
+  const n = pos.count;
+  const idx = g.index.array;
+  // 이웃 목록
+  const nb = Array.from({length:n}, () => new Set());
+  for (let i=0;i<idx.length;i+=3){
+    const a=idx[i], b=idx[i+1], c=idx[i+2];
+    nb[a].add(b); nb[a].add(c);
+    nb[b].add(a); nb[b].add(c);
+    nb[c].add(a); nb[c].add(b);
+  }
+  const px = new Float32Array(n), py = new Float32Array(n), pz = new Float32Array(n);
+  for (let i=0;i<n;i++){ px[i]=pos.getX(i); py[i]=pos.getY(i); pz[i]=pos.getZ(i); }
+  const dx = new Float32Array(n), dy = new Float32Array(n), dz = new Float32Array(n);
+  const step = (factor) => {
+    for (let i=0;i<n;i++){
+      const s = nb[i]; if (s.size===0){dx[i]=dy[i]=dz[i]=0; continue;}
+      let sx=0,sy=0,sz=0;
+      for (const j of s){ sx+=px[j]; sy+=py[j]; sz+=pz[j]; }
+      const inv=1/s.size;
+      dx[i]=(sx*inv-px[i])*factor; dy[i]=(sy*inv-py[i])*factor; dz[i]=(sz*inv-pz[i])*factor;
+    }
+    for (let i=0;i<n;i++){ px[i]+=dx[i]; py[i]+=dy[i]; pz[i]+=dz[i]; }
+  };
+  for (let k=0;k<iterations;k++){ step(lambda); step(mu); }
+  for (let i=0;i<n;i++){ pos.setXYZ(i, px[i], py[i], pz[i]); }
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
+const loader = new GLTFLoader();
+
+function loadModel(url){
+  return new Promise((res, rej) => loader.load(url, g => res(g), undefined, rej));
+}
+
+const ANGLES = [
+  { name:'front',        theta:0,   phi:90 },
+  { name:'front-quarter',theta:35,  phi:78 },
+  { name:'side',         theta:90,  phi:88 },
+  { name:'back-quarter', theta:145, phi:80 },
+  { name:'back',         theta:180, phi:90 },
+  { name:'left-quarter', theta:-40, phi:78 },
+  { name:'top-down',     theta:25,  phi:35 },
+  { name:'hero-low',     theta:30,  phi:105 },
+];
+
+async function run(){
+  if (window.__started) return;
+  window.__started = true;
+  setStatus('모델 로딩…');
+  const gltf = await loadModel('assets/moving-buddy.glb');
+  const root = gltf.scene;
+
+  setStatus('메시 스무딩…');
+  let meshCount = 0, vtot = 0;
+  root.traverse(o => {
+    if (o.isMesh && o.geometry){
+      o.geometry = smoothGeometry(o.geometry, 22, 0.55, -0.58);
+      o.material = mat;
+      meshCount++; vtot += o.geometry.attributes.position.count;
+    }
+  });
+  window.__meshInfo = { meshCount, vtot };
+  scene.add(root);
+
+  // 바운딩으로 카메라 프레이밍
+  const box = new THREE.Box3().setFromObject(root);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const center = sphere.center, R = sphere.radius;
+  const fov = 30;
+  const camera = new THREE.PerspectiveCamera(fov, W/H, R*0.01, R*100);
+  const dist = (R / Math.sin((fov*Math.PI/180)/2)) * 1.12;
+
+  const shots = [];
+  setStatus('앵글 렌더링…');
+  for (const a of ANGLES){
+    const t = a.theta*Math.PI/180, p = a.phi*Math.PI/180;
+    camera.position.set(
+      center.x + dist*Math.sin(p)*Math.sin(t),
+      center.y + dist*Math.cos(p),
+      center.z + dist*Math.sin(p)*Math.cos(t),
+    );
+    camera.up.set(0,1,0);
+    camera.lookAt(center);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);           // 동기 렌더 → 탭 가시성 무관
+    const dataURL = renderer.domElement.toDataURL('image/png');
+    shots.push({ name:a.name, dataURL });
+
+    const fig=document.createElement('figure');
+    const img=document.createElement('img'); img.src=dataURL;
+    const cap=document.createElement('figcaption'); cap.textContent=a.name;
+    fig.appendChild(img); fig.appendChild(cap); gallery.appendChild(fig);
+    setStatus(`렌더링 ${shots.length}/${ANGLES.length}`);
+    await wait(20);
+  }
+
+  setStatus('저장…');
+  let saved=0, fails=0;
+  for (const s of shots){
+    const r = await fetch('/__save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)});
+    if (r.ok) saved++; else fails++;
+    setStatus(`저장 ${saved}/${shots.length}`);
+  }
+  window.__saved = saved;
+  setStatus(`완료 — 저장 ${saved} / 실패 ${fails} · 메시 ${meshCount} · 정점 ${vtot}`);
+  window.__done = true;
+}
+
+run().catch(e => { setStatus('오류: ' + e.message); window.__err = String(e.stack||e); });
+</script>

@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeaOasis · Diver Safety</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --white:#ffffff;
+    --glass:rgba(255,255,255,.14);
+    --glass-strong:rgba(255,255,255,.22);
+    --stroke:rgba(255,255,255,.32);
+    --accent:#3ad0c8;
+    --ink:#06283a;
+    --green:#18c268;
+    --amber:#f2a33c;
+    --red:#ff5252;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;
+  }
+  html,body{ height:100%; }
+  body{ display:flex; align-items:center; justify-content:center; background:#04222f; overflow:hidden; }
+
+  /* fixed 390x844 design, uniformly scaled by JS to fit the screen (never cropped) */
+  .phone{ position:relative; flex:none; width:390px; height:844px;
+    transform-origin:center center;
+    overflow:hidden; background:#04222f; border-radius:30px; box-shadow:0 22px 70px rgba(0,0,0,.45); }
+  .phone.full{ border-radius:0; box-shadow:none; }
+  .screen{ position:absolute; inset:0; z-index:2; color:var(--white); }
+
+  /* ---------- shared status bar (overlay) ---------- */
+  .statusbar{ position:absolute; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:15px 26px 4px; font-size:15px; font-weight:600; text-shadow:0 1px 4px rgba(0,0,0,.35); z-index:12; }
+  .sysicons{ display:flex; gap:6px; align-items:center; }
+  .bars{ display:flex; align-items:flex-end; gap:2px; height:12px; }
+  .bars span{ width:3px; background:currentColor; border-radius:1px; }
+  .bars span:nth-child(1){height:5px} .bars span:nth-child(2){height:8px} .bars span:nth-child(3){height:11px} .bars span:nth-child(4){height:13px}
+  .batt{ width:24px; height:12px; border:1.6px solid currentColor; border-radius:3px; position:relative; }
+  .batt::after{ content:''; position:absolute; right:-4px; top:3px; width:2px; height:5px; background:currentColor; border-radius:0 2px 2px 0; }
+  .batt i{ position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:70%; background:currentColor; border-radius:1px; }
+  .statusbar{ color:#fff; }
+  .phone.light{ background:#e9eff4; }
+  .phone.light .statusbar{ color:#1e2b33; text-shadow:none; }
+
+  /* ---------- views ---------- */
+  .views{ position:absolute; inset:0; }
+  .view{ position:absolute; inset:0; display:none; flex-direction:column; }
+  .view.on{ display:flex; }
+  .scroll{ overflow-y:auto; }
+  .scroll::-webkit-scrollbar{ display:none; }
+
+  /* shared underwater backdrop */
+  .aqua-bg{ position:absolute; inset:0; z-index:0; object-fit:cover; width:100%; height:100%; }
+  .aqua-fallback{ position:absolute; inset:0; z-index:0; background:radial-gradient(120% 80% at 50% -10%,#6fd3d8 0%,#2a97a8 34%,#0d5f77 62%,#063d55 100%); }
+  .aqua-grade{ position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:linear-gradient(180deg, rgba(3,26,40,.6) 0%, rgba(3,26,40,.15) 22%, rgba(3,26,40,.1) 50%, rgba(3,26,40,.55) 82%, rgba(3,26,40,.92) 100%); }
+  .particles{ position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; }
+  .particles i{ position:absolute; width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.5); animation:rise linear infinite; }
+  @keyframes rise{ from{ transform:translateY(0); opacity:.5;} to{ transform:translateY(-60px); opacity:0;} }
+
+  /* ===================== MONITOR ===================== */
+  #view-monitor .m-inner{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; color:#fff; padding:52px 22px 90px; }
+  .m-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .m-conn{ display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; background:var(--glass); border:1px solid var(--stroke); padding:8px 13px; border-radius:16px; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+  .m-conn b{ width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); }
+  .m-timer{ font-size:13.5px; font-weight:700; letter-spacing:.5px; background:var(--glass); border:1px solid var(--stroke); padding:8px 13px; border-radius:16px; backdrop-filter:blur(12px); }
+  .m-timer span{ opacity:.6; font-weight:500; margin-right:4px; }
+
+  .gauge{ position:relative; width:236px; height:236px; margin:20px auto 6px; }
+  .gauge svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+  .gauge .g-track{ fill:none; stroke:rgba(255,255,255,.14); stroke-width:12; }
+  .gauge .g-arc{ fill:none; stroke:var(--accent); stroke-width:12; stroke-linecap:round; filter:drop-shadow(0 0 8px rgba(58,208,200,.6)); transition:stroke-dashoffset .6s ease, stroke .4s; }
+  .gauge .g-c{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge .g-lbl{ font-size:12.5px; font-weight:600; opacity:.65; letter-spacing:1px; text-transform:uppercase; }
+  .gauge .g-val{ font-size:56px; font-weight:800; line-height:1; margin-top:4px; }
+  .gauge .g-unit{ font-size:20px; font-weight:600; opacity:.7; }
+  .gauge .g-sub{ font-size:12.5px; font-weight:600; margin-top:8px; padding:3px 12px; border-radius:12px; background:rgba(24,194,104,.22); border:1px solid rgba(24,194,104,.5); color:#8ff0bd; }
+
+  .vitals{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+  .vital{ background:var(--glass); border:1px solid var(--stroke); border-radius:20px; padding:15px 16px; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); }
+  .vital .vk{ display:flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; opacity:.7; }
+  .vital .vk .ic{ font-size:14px; }
+  .vital .vv{ font-size:27px; font-weight:800; margin-top:6px; line-height:1; }
+  .vital .vsub{ display:flex; align-items:center; gap:6px; margin-top:9px; font-size:12px; font-weight:600; opacity:.85; }
+  .vbatt{ position:relative; width:22px; height:11px; border:1.5px solid rgba(255,255,255,.75); border-radius:3px; flex:none; }
+  .vbatt::after{ content:''; position:absolute; right:-3px; top:2.5px; width:2px; height:4px; background:rgba(255,255,255,.75); border-radius:0 2px 2px 0; }
+  .vbatt i{ position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:80%; background:var(--green); border-radius:1px; }
+  .vital .vv small{ font-size:13px; font-weight:600; opacity:.6; margin-left:3px; }
+  .vital.warn{ background:rgba(242,163,60,.16); border-color:rgba(242,163,60,.45); }
+  .vital .heart{ display:inline-block; animation:beat 1s infinite; }
+  @keyframes beat{ 0%,100%{transform:scale(1)} 15%{transform:scale(1.25)} 30%{transform:scale(1)} }
+
+  .sosbar{ margin-top:auto; display:flex; align-items:center; gap:14px; padding:15px 18px; border-radius:22px;
+    background:rgba(24,194,104,.16); border:1px solid rgba(24,194,104,.5); backdrop-filter:blur(14px); transition:.35s; }
+  .sosbar .sb-txt{ flex:1; }
+  .sosbar .sb-t{ font-size:15px; font-weight:800; }
+  .sosbar .sb-s{ font-size:12px; opacity:.75; margin-top:2px; }
+  .sosbar .sb-btn{ flex:none; width:74px; height:74px; border-radius:50%; border:3px solid rgba(255,255,255,.9); background:linear-gradient(160deg,#ff6b6b,#e03030); color:#fff; font-size:19px; font-weight:900; letter-spacing:.5px; cursor:pointer; box-shadow:0 8px 22px rgba(224,48,48,.5); transition:transform .12s; }
+  .sosbar .sb-btn:active{ transform:scale(.9); }
+  .sosbar.alert{ background:rgba(224,48,48,.32); border-color:rgba(255,120,110,.7); animation:sosflash 1s infinite; }
+  @keyframes sosflash{ 50%{ background:rgba(224,48,48,.15); } }
+
+  /* live button (monitor bottom) + live overlay */
+  @keyframes blink{ 50%{ opacity:.3; } }
+  .livebox{ margin-top:auto; display:flex; align-items:center; gap:13px; width:100%; text-align:left; padding:15px 17px; border-radius:22px; cursor:pointer; color:#fff;
+    background:linear-gradient(150deg, rgba(255,77,77,.24), rgba(6,54,70,.44)); border:1px solid rgba(255,120,110,.45); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+  .livebox:active{ transform:scale(.99); }
+  .live-badge{ display:flex; align-items:center; gap:6px; font-size:12px; font-weight:800; letter-spacing:.6px; padding:6px 11px; border-radius:12px; background:rgba(0,0,0,.4); flex:none; }
+  .live-badge b{ width:8px; height:8px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 8px #ff4d4d; animation:blink 1.2s infinite; }
+  .live-txt{ flex:1; display:flex; flex-direction:column; }
+  .live-txt .lt{ font-size:15px; font-weight:800; }
+  .live-txt .ls{ font-size:12px; opacity:.82; margin-top:2px; }
+  .live-play{ flex:none; width:44px; height:44px; border-radius:50%; background:#fff; color:#e03030; display:flex; align-items:center; justify-content:center; font-size:15px; padding-left:3px; }
+
+  .livepage{ position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; background:#03161f; color:#fff; transform:translateY(100%); transition:transform .32s cubic-bezier(.4,0,.2,1); }
+  .livepage.open{ transform:translateY(0); }
+  .livepage video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+  .lp-grade{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(0,0,0,.5) 0%, rgba(0,0,0,0) 24%, rgba(0,0,0,0) 56%, rgba(0,0,0,.66) 100%); }
+  .lp-in{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; padding:44px 18px 42px; }
+  .lp-top{ display:flex; align-items:center; gap:10px; }
+  .lp-rec{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; letter-spacing:.4px; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
+  .lp-rec b{ width:9px; height:9px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 10px #ff4d4d; animation:blink 1.2s infinite; }
+  .lp-rec.paused b{ animation:none; opacity:.35; box-shadow:none; }
+  .lp-depth{ font-size:13px; font-weight:700; background:rgba(0,0,0,.42); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
+  .lp-close{ margin-left:auto; width:40px; height:40px; border-radius:50%; border:1px solid var(--stroke); background:rgba(0,0,0,.4); color:#fff; font-size:17px; cursor:pointer; backdrop-filter:blur(8px); }
+  .lp-alert{ align-self:center; margin-top:12px; display:flex; align-items:center; gap:9px; font-size:13px; font-weight:600; background:rgba(3,26,40,.55); border:1px solid rgba(255,255,255,.22); padding:9px 16px; border-radius:16px; backdrop-filter:blur(10px); }
+  .lp-alert .d{ width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); }
+  .lp-sp{ flex:1; }
+  .lp-controls{ display:flex; align-items:center; justify-content:center; gap:40px; }
+  .lp-photo{ width:56px; height:56px; border-radius:50%; border:2px solid #fff; background:rgba(255,255,255,.15); backdrop-filter:blur(8px); cursor:pointer; }
+  .lp-rec-btn{ width:74px; height:74px; border-radius:50%; border:5px solid #fff; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .lp-rec-btn i{ width:28px; height:28px; border-radius:8px; background:#ff4d4d; transition:.2s; }
+
+  /* ===================== CONNECT ===================== */
+  #view-connect .c-inner{ position:relative; z-index:2; flex:1; display:flex; flex-direction:column; color:#fff; padding:52px 20px 96px; }
+  .head-h{ font-size:25px; font-weight:800; letter-spacing:-.3px; }
+  .head-s{ font-size:13px; opacity:.7; margin-top:3px; margin-bottom:18px; }
+
+  .share-card{ display:flex; align-items:center; gap:15px; padding:18px 20px; border-radius:22px; background:var(--glass); border:1px solid var(--stroke); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); margin-bottom:18px; transition:.3s; }
+  .share-card.on{ background:linear-gradient(150deg, rgba(58,208,200,.28), rgba(24,194,104,.18)); border-color:rgba(58,208,200,.55); }
+  .share-ring{ position:relative; width:52px; height:52px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; background:rgba(255,255,255,.14); }
+  .share-card.on .share-ring{ background:rgba(58,208,200,.3); }
+  .share-card.on .share-ring::after{ content:''; position:absolute; inset:-4px; border-radius:50%; border:2px solid var(--accent); animation:ping 1.6s ease-out infinite; }
+  @keyframes ping{ 0%{transform:scale(1); opacity:.8} 100%{transform:scale(1.5); opacity:0} }
+  .share-txt{ flex:1; }
+  .share-txt .st{ font-size:16px; font-weight:800; }
+  .share-txt .ss{ font-size:12.5px; opacity:.72; margin-top:2px; }
+  .toggle{ position:relative; width:52px; height:30px; border-radius:16px; background:rgba(255,255,255,.22); border:none; cursor:pointer; flex:none; transition:.25s; }
+  .toggle::after{ content:''; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:.25s; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .toggle.on{ background:var(--green); } .toggle.on::after{ left:25px; }
+
+  .sec-lbl{ font-size:12.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; opacity:.55; margin:6px 4px 10px; }
+  .people{ display:flex; flex-direction:column; gap:10px; }
+  .person{ display:flex; align-items:center; gap:13px; padding:14px 15px; border-radius:18px; background:var(--glass); border:1px solid var(--stroke); backdrop-filter:blur(12px); }
+  .person .av{ width:44px; height:44px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center; font-size:20px; background:rgba(255,255,255,.16); }
+  .person .pinfo{ flex:1; }
+  .person .pn{ font-size:15px; font-weight:700; }
+  .person .pr{ font-size:12px; opacity:.65; margin-top:1px; }
+  .badge{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:10px; }
+  .badge.guardian{ background:rgba(138,184,255,.22); color:#bcd6ff; border:1px solid rgba(138,184,255,.4); }
+  .badge.guide{ background:rgba(58,208,200,.22); color:#a6f0ea; border:1px solid rgba(58,208,200,.4); }
+  .badge.buddy{ background:rgba(255,214,120,.2); color:#ffe6a8; border:1px solid rgba(255,214,120,.4); }
+  .badge.rescue{ background:rgba(255,90,90,.2); color:#ffb3b3; border:1px solid rgba(255,90,90,.4); }
+  .pstat{ display:flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; opacity:.85; margin-top:5px; }
+  .pstat b{ width:6px; height:6px; border-radius:50%; background:var(--green); }
+  .pstat.off b{ background:rgba(255,255,255,.4); }
+  .pstat.off{ opacity:.5; }
+
+  .conn-actions{ display:flex; gap:10px; margin:18px 0 20px; }
+  .conn-actions button{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; padding:15px 6px; border-radius:18px; background:var(--glass); border:1px solid var(--stroke); color:#fff; font-size:12.5px; font-weight:700; cursor:pointer; backdrop-filter:blur(12px); }
+  .conn-actions button .ci{ font-size:22px; }
+  .conn-actions button:active{ background:var(--glass-strong); }
+  .conn-actions button.danger{ color:#ffb3b3; }
+
+  .share-items{ display:flex; flex-direction:column; gap:2px; padding:6px 4px 4px; border-radius:18px; background:var(--glass); border:1px solid var(--stroke); backdrop-filter:blur(12px); }
+  .share-item{ display:flex; align-items:center; gap:11px; padding:12px 14px; }
+  .share-item + .share-item{ border-top:1px solid rgba(255,255,255,.1); }
+  .share-item .si-ic{ font-size:17px; width:22px; text-align:center; }
+  .share-item .si-t{ flex:1; font-size:14px; font-weight:600; }
+
+  /* ===================== REPORT (health dashboard, light) ===================== */
+  #view-report{ background:linear-gradient(160deg,#eef3f7 0%,#dce7ef 55%,#e9f1f6 100%); color:#12222b; }
+  .rp{ padding:52px 20px 96px; }
+  .rp .head-h{ color:#12222b; }
+
+  .rp-seg{ display:flex; background:rgba(255,255,255,.7); border:1px solid rgba(0,0,0,.06); border-radius:16px; padding:4px; margin:14px 0 16px; box-shadow:0 4px 14px rgba(40,70,90,.08); }
+  .rp-seg button{ flex:1; border:none; background:transparent; color:#7c93a1; font-size:13.5px; font-weight:700; padding:11px; border-radius:12px; cursor:pointer; transition:.2s; }
+  .rp-seg button.on{ background:#12222b; color:#fff; box-shadow:0 4px 12px rgba(18,34,43,.25); }
+
+  .rp-status{ display:flex; align-items:center; gap:10px; padding:13px 16px; border-radius:16px; margin-bottom:16px; font-size:13px; font-weight:700;
+    background:rgba(24,194,104,.14); border:1px solid rgba(24,194,104,.35); color:#128a4c; }
+  .rp-status.injury{ background:rgba(255,82,82,.12); border-color:rgba(255,82,82,.35); color:#d33; }
+  .rp-status .si{ font-size:17px; }
+
+  .body-card{ background:linear-gradient(180deg,#ffffff,#f1f6fb); border:1px solid rgba(255,255,255,.9); border-radius:24px; padding:16px 16px 10px; margin-bottom:16px; box-shadow:0 12px 30px rgba(40,70,90,.1); }
+  .bc-h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .bc-t{ font-size:15px; font-weight:800; color:#12222b; }
+  .bc-badge{ font-size:11.5px; font-weight:700; padding:5px 12px; border-radius:12px; background:rgba(24,194,104,.16); color:#128a4c; }
+  .bc-badge.injury{ background:rgba(255,82,82,.16); color:#d33; }
+  .bc-hint{ text-align:center; font-size:11px; color:#9aabb6; margin:2px 0 6px; }
+  .body-stage{ position:relative; height:352px; }
+  .body-stage img{ position:absolute; left:50%; top:0; transform:translateX(-50%); height:100%; width:auto; mix-blend-mode:multiply; pointer-events:none; }
+  .injury-pt{ position:absolute; z-index:3; transform:translate(-50%,-50%); }
+  .injury-pt .dot{ width:16px; height:16px; border-radius:50%; background:#ff3b3b; border:3px solid #fff; box-shadow:0 0 0 0 rgba(255,59,59,.5); animation:injpulse 1.7s infinite; cursor:pointer; }
+  @keyframes injpulse{ 0%{box-shadow:0 0 0 0 rgba(255,59,59,.5)} 70%{box-shadow:0 0 0 13px rgba(255,59,59,0)} 100%{box-shadow:0 0 0 0 rgba(255,59,59,0)} }
+  .injury-pt .pill{ position:absolute; white-space:nowrap; background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:12px; padding:6px 11px; box-shadow:0 6px 16px rgba(40,70,90,.18); }
+  .injury-pt .pill .pk{ font-size:12px; font-weight:800; color:#12222b; }
+  .injury-pt .pill .pv{ font-size:11px; color:#e0393c; font-weight:700; margin-top:1px; }
+
+  .hm-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .hm{ background:rgba(255,255,255,.85); border:1px solid rgba(255,255,255,.95); border-radius:20px; padding:14px 15px; box-shadow:0 8px 20px rgba(40,70,90,.07); }
+  .hm.wide{ grid-column:1 / -1; }
+  .hm .hk{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; color:#8397a3; }
+  .hm .hk .ic{ font-size:14px; }
+  .hm .hv{ font-size:24px; font-weight:800; color:#12222b; margin-top:6px; line-height:1; }
+  .hm .hv small{ font-size:12px; font-weight:600; color:#9aabb6; margin-left:3px; }
+  .hm .hv .st{ font-size:19px; }
+  .hm .spark{ width:100%; height:34px; margin-top:9px; overflow:visible; display:block; }
+  .hm .spark .ln{ fill:none; stroke:#2f6bff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .hm .spark .ln.hr{ stroke:#ff5a5a; }
+  .hm .spark .bar{ fill:#cfe0ff; } .hm .spark .bar.hi{ fill:#2f6bff; }
+  .hm.alert{ background:rgba(255,82,82,.07); border-color:rgba(255,82,82,.22); }
+  .hm .tag{ display:inline-block; margin-top:9px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; }
+  .tag.good{ background:rgba(24,194,104,.16); color:#128a4c; }
+  .tag.warn{ background:rgba(242,163,60,.2); color:#c47714; }
+  .tag.bad{ background:rgba(255,82,82,.16); color:#e0393c; }
+
+  .ai-card{ margin-top:16px; padding:18px 18px 16px; border-radius:22px; background:linear-gradient(150deg,#eaf3ff,#f5faff); border:1px solid rgba(47,107,255,.22); box-shadow:0 8px 20px rgba(40,70,90,.07); }
+  .ai-h{ display:flex; align-items:center; gap:9px; font-size:14px; font-weight:800; color:#12222b; margin-bottom:8px; }
+  .ai-h .sp{ width:24px; height:24px; border-radius:7px; background:#2f6bff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:900; }
+  .ai-line{ display:flex; gap:10px; font-size:13px; line-height:1.5; padding:6px 0; color:#3a4a54; }
+  .ai-line .dot{ flex:none; margin-top:6px; width:7px; height:7px; border-radius:50%; }
+  .ai-line.ok .dot{ background:var(--green); } .ai-line.warn .dot{ background:var(--amber); } .ai-line.bad .dot{ background:var(--red); }
+  .ai-line b{ font-weight:800; color:#12222b; }
+
+  /* ===================== HISTORY ===================== */
+  #view-history{ background:linear-gradient(180deg,#06303f,#04222f); color:#fff; }
+  .hs-wrap{ padding:52px 20px 96px; }
+  .hs-loc{ display:flex; align-items:center; gap:5px; font-size:13px; opacity:.8; margin:4px 0 18px; }
+  .cal{ margin-bottom:4px; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; padding:0 2px; }
+  .cal-month{ font-size:16px; font-weight:700; letter-spacing:.6px; }
+  .cal-nav{ width:34px; height:34px; border-radius:50%; border:1px solid var(--stroke); background:var(--glass); backdrop-filter:blur(10px); color:#fff; font-size:18px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cal-nav:active{ background:var(--glass-strong); }
+  .cal-week{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .cal-day{ display:flex; flex-direction:column; align-items:center; gap:7px; padding:6px 0 8px; border-radius:16px; cursor:pointer; }
+  .cal-day .wd{ font-size:11px; font-weight:600; opacity:.5; }
+  .cal-day .dn{ font-size:15.5px; font-weight:700; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background .15s; }
+  .cal-day .dot{ width:5px; height:5px; border-radius:50%; background:transparent; }
+  .cal-day .dot.dive{ background:var(--accent); box-shadow:0 0 6px rgba(58,208,200,.7); }
+  .cal-day.sun .wd,.cal-day.sun .dn{ color:#ff8a8a; }
+  .cal-day.sat .wd,.cal-day.sat .dn{ color:#8ab8ff; }
+  .cal-day.on .dn{ background:var(--accent); color:#06283a; }
+  .cal-day.on .dot.dive{ background:#fff; }
+
+  .log-div{ height:1px; background:rgba(255,255,255,.13); margin:20px 0; }
+  .hs-safe{ display:flex; align-items:center; gap:10px; padding:13px 16px; border-radius:16px; margin-bottom:16px; font-size:13.5px; font-weight:600;
+    background:rgba(24,194,104,.16); border:1px solid rgba(24,194,104,.4); }
+  .hs-safe.warn{ background:rgba(242,163,60,.16); border-color:rgba(242,163,60,.45); }
+  .hs-safe .hi{ font-size:18px; }
+  .hs-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .hs-stat{ background:var(--glass); border:1px solid var(--stroke); border-radius:18px; padding:16px 8px; text-align:center; }
+  .hs-stat .sv{ font-size:21px; font-weight:800; } .hs-stat .sv small{ font-size:12px; opacity:.6; }
+  .hs-stat .sl{ font-size:11.5px; opacity:.7; margin-top:6px; }
+  .hs-empty{ text-align:center; padding:50px 20px; }
+  .hs-empty .ei{ font-size:40px; margin-bottom:12px; }
+  .hs-empty .et{ font-size:15px; font-weight:700; margin-bottom:6px; }
+  .hs-empty .es{ font-size:12.5px; opacity:.55; }
+
+  .cum-title{ font-size:14px; font-weight:700; margin:4px 4px 12px; }
+  .cum{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .cum-card{ display:flex; align-items:center; gap:13px; padding:15px 16px; border-radius:18px; background:var(--glass); border:1px solid var(--stroke); }
+  .cum-card .cic{ font-size:24px; }
+  .cum-card .cv{ font-size:20px; font-weight:800; } .cum-card .cv small{ font-size:11px; opacity:.6; }
+  .cum-card .cl{ font-size:11.5px; opacity:.65; margin-top:2px; }
+
+  /* ===================== DEVICE (light) ===================== */
+  #view-device{ background:linear-gradient(160deg,#eef3f7 0%,#dce7ef 55%,#cfdEe9 100%); color:#1e2b33; overflow:hidden; }
+  .dv{ position:relative; flex:1; display:flex; flex-direction:column; padding:52px 22px 90px; }
+  .dv-img{ position:absolute; right:-46px; top:112px; width:330px; max-width:82%; z-index:1; filter:drop-shadow(0 26px 40px rgba(40,70,90,.28)); pointer-events:none; }
+  .dv-glow{ position:absolute; right:-20px; top:190px; width:320px; height:320px; border-radius:50%; z-index:0; background:radial-gradient(circle, rgba(255,255,255,.9), rgba(255,255,255,0) 70%); }
+  .dv-top{ display:flex; align-items:center; justify-content:space-between; position:relative; z-index:3; }
+  .dv-online{ display:flex; align-items:center; gap:7px; background:var(--green); color:#fff; font-size:13px; font-weight:700; padding:9px 16px; border-radius:22px; box-shadow:0 6px 16px rgba(24,194,104,.35); }
+  .dv-online b{ width:8px; height:8px; border-radius:50%; background:#fff; }
+  .dv-title{ position:relative; z-index:3; margin-top:22px; }
+  .dv-title h2{ font-size:30px; font-weight:800; letter-spacing:-.5px; }
+  .dv-title p{ font-size:14px; color:#7c93a1; margin-top:2px; }
+  .dv-specs{ position:relative; z-index:3; margin-top:26px; max-width:58%; }
+  .dv-spec{ margin-bottom:16px; }
+  .dv-spec .k{ font-size:12px; color:#9aabb6; font-weight:500; }
+  .dv-spec .v{ font-size:18px; font-weight:700; margin-top:1px; }
+  .dv-spec .v small{ font-size:12px; font-weight:600; color:var(--green); margin-left:6px; }
+  .dv-spec .v.warn small{ color:#e8892b; }
+  .dv-more{ position:relative; z-index:3; margin-top:6px; font-size:15px; font-weight:700; color:#1e2b33; text-decoration:none; border-bottom:2px solid var(--green); padding-bottom:3px; align-self:flex-start; }
+  .dv-actions{ position:relative; z-index:3; margin-top:auto; display:flex; gap:12px; align-items:center; }
+  .dv-diag{ display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; color:#1e2b33; background:none; border:none; cursor:pointer; }
+  .dv-diag .dot{ width:8px; height:8px; border-radius:50%; background:#1e2b33; }
+  .dv-next{ flex:1; max-width:180px; margin-left:auto; padding:17px; border:none; border-radius:22px; background:#12222b; color:#fff; font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 10px 24px rgba(18,34,43,.3); }
+
+  /* ---------- bottom tabs ---------- */
+  .tabs{ position:absolute; bottom:0; left:0; right:0; display:flex; justify-content:space-around; align-items:center; padding:14px 10px 24px; z-index:12;
+    background:linear-gradient(0deg, rgba(3,20,30,.55), rgba(3,20,30,0)); }
+  .tabs a{ display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px; font-weight:600; color:rgba(255,255,255,.5); text-decoration:none; cursor:pointer; padding:2px 4px; }
+  .tabs a .ti{ font-size:20px; line-height:1; filter:grayscale(.3) opacity(.7); }
+  .tabs a.on{ color:#fff; }
+  .tabs a.on .ti{ filter:none; }
+  .phone.light .tabs{ background:linear-gradient(0deg, rgba(233,239,244,.85), rgba(233,239,244,0)); }
+  .phone.light .tabs a{ color:#93a6b2; }
+  .phone.light .tabs a.on{ color:#12222b; }
+
+  /* ---------- SOS overlay ---------- */
+  .sos-overlay{ position:absolute; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#fff; padding:40px;
+    background:radial-gradient(120% 80% at 50% 30%, rgba(224,48,48,.85), rgba(120,10,10,.95)); animation:sosflash 1.1s infinite; }
+  .sos-overlay.show{ display:flex; }
+  .sos-overlay .big{ font-size:64px; font-weight:900; letter-spacing:2px; }
+  .sos-overlay .msg{ font-size:16px; font-weight:600; margin-top:10px; line-height:1.5; opacity:.95; }
+  .sos-overlay .who{ margin-top:22px; display:flex; flex-direction:column; gap:8px; width:100%; max-width:260px; }
+  .sos-overlay .who div{ display:flex; align-items:center; justify-content:space-between; font-size:13px; font-weight:600; background:rgba(0,0,0,.28); padding:10px 15px; border-radius:14px; }
+  .sos-overlay .who .ck{ color:#8ff0bd; }
+  .sos-overlay .cancel{ margin-top:26px; padding:15px 40px; border:2px solid #fff; border-radius:22px; background:transparent; color:#fff; font-size:15px; font-weight:800; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div class="phone" id="phone">
+    <div class="screen">
+      <!-- shared status bar -->
+      <div class="statusbar">
+        <span>11:30</span>
+        <div class="sysicons">
+          <div class="bars"><span></span><span></span><span></span><span></span></div>
+          <div class="batt"><i></i></div>
+        </div>
+      </div>
+
+      <div class="views">
+        <!-- ===================== MONITOR ===================== -->
+        <section class="view on" id="view-monitor">
+          <div class="aqua-fallback"></div>
+          <video class="aqua-bg" src="assets/scuba-dive.mp4" poster="assets/ocean-bg.png" autoplay muted loop playsinline></video>
+          <div class="aqua-grade"></div>
+          <div class="particles" id="particles"></div>
+
+          <div class="m-inner">
+            <div class="m-top">
+              <div class="m-conn"><b></b> SeaBuddy 연결됨</div>
+              <div class="m-timer"><span>다이빙</span><span id="diveTimer">00:32:41</span></div>
+            </div>
+
+            <div class="gauge">
+              <svg viewBox="0 0 236 236" width="236" height="236">
+                <circle class="g-track" cx="118" cy="118" r="104"></circle>
+                <circle class="g-arc" id="depthArc" cx="118" cy="118" r="104"></circle>
+              </svg>
+              <div class="g-c">
+                <div class="g-lbl">현재 수심</div>
+                <div class="g-val" id="depthVal">14.2<span class="g-unit">m</span></div>
+                <div class="g-sub" id="depthSub">안전 구간 · 무감압 42분</div>
+              </div>
+            </div>
+
+            <div class="vitals">
+              <div class="vital">
+                <div class="vk"><span class="ic heart">❤️</span> 심박수</div>
+                <div class="vv"><span id="hrVal">78</span><small>bpm</small></div>
+              </div>
+              <div class="vital">
+                <div class="vk"><span class="ic">🫁</span> 산소량</div>
+                <div class="vv"><span id="o2Val">92</span><small>%</small></div>
+              </div>
+              <div class="vital">
+                <div class="vk"><span class="ic">🌡️</span> 수온</div>
+                <div class="vv">21<small>°C</small></div>
+              </div>
+              <div class="vital">
+                <div class="vk"><span class="ic">🤿</span> Sea-Buddy</div>
+                <div class="vv">86<small>%</small></div>
+                <div class="vsub"><span class="vbatt"><i></i></span> 배터리 양호</div>
+              </div>
+            </div>
+
+            <button class="livebox" id="liveBtn">
+              <span class="live-badge"><b></b> LIVE</span>
+              <span class="live-txt">
+                <span class="lt">SeaBuddy 실시간 영상</span>
+                <span class="ls">수중 카메라 · 지금 보기</span>
+              </span>
+              <span class="live-play">▶</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- ===================== CONNECT ===================== -->
+        <section class="view" id="view-connect">
+          <div class="aqua-fallback"></div>
+          <div class="aqua-grade" style="background:linear-gradient(180deg,#063d55,#04222f)"></div>
+          <div class="c-inner scroll">
+            <div class="head-h">안전 공유</div>
+            <div class="head-s">내 상태를 실시간으로 함께 봐요</div>
+
+            <div class="share-card on" id="shareCard">
+              <div class="share-ring">📡</div>
+              <div class="share-txt">
+                <div class="st">Live Sharing</div>
+                <div class="ss" id="shareState">4명에게 실시간 공유 중</div>
+              </div>
+              <button class="toggle on" id="shareToggle" aria-label="live sharing"></button>
+            </div>
+
+            <div class="sec-lbl">연결된 사람 · 4</div>
+            <div class="people">
+              <div class="person">
+                <div class="av">👨‍👩‍👧</div>
+                <div class="pinfo">
+                  <div class="pn">김서준 <span class="badge guardian">보호자</span></div>
+                  <div class="pstat"><b></b> 실시간 위치·수심 확인 중</div>
+                </div>
+              </div>
+              <div class="person">
+                <div class="av">🤿</div>
+                <div class="pinfo">
+                  <div class="pn">이하나 <span class="badge guide">다이빙 가이드</span></div>
+                  <div class="pstat"><b></b> 함께 다이빙 중 · -12m</div>
+                </div>
+              </div>
+              <div class="person">
+                <div class="av">🐠</div>
+                <div class="pinfo">
+                  <div class="pn">박도윤 <span class="badge buddy">다이브 버디</span></div>
+                  <div class="pstat"><b></b> 거리 8m · 심박 정상</div>
+                </div>
+              </div>
+              <div class="person">
+                <div class="av">🚨</div>
+                <div class="pinfo">
+                  <div class="pn">서귀포 해양구조대 <span class="badge rescue">구조센터</span></div>
+                  <div class="pstat off"><b></b> SOS 발생 시 자동 연결</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="conn-actions">
+              <button><span class="ci">🔳</span> QR 연결</button>
+              <button><span class="ci">🔑</span> 초대코드</button>
+              <button class="danger"><span class="ci">🔌</span> 연결 해제</button>
+            </div>
+
+            <div class="sec-lbl">공유 항목</div>
+            <div class="share-items" id="shareItems">
+              <div class="share-item"><span class="si-ic">📍</span><span class="si-t">현재 위치 (GPS)</span><button class="toggle on"></button></div>
+              <div class="share-item"><span class="si-ic">🌊</span><span class="si-t">현재 수심</span><button class="toggle on"></button></div>
+              <div class="share-item"><span class="si-ic">❤️</span><span class="si-t">심박수</span><button class="toggle on"></button></div>
+              <div class="share-item"><span class="si-ic">🆘</span><span class="si-t">SOS 발생 여부</span><button class="toggle on"></button></div>
+              <div class="share-item"><span class="si-ic">⚠️</span><span class="si-t">위험 알림</span><button class="toggle on"></button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== REPORT (health dashboard) ===================== -->
+        <section class="view" id="view-report">
+          <div class="rp scroll">
+            <div class="head-h">건강 리포트</div>
+
+            <div class="rp-status" id="rpStatus" style="margin-top:18px"><span class="si">🛡️</span> <span id="rpStatusTxt">신체 이상 없음 · 정상 모니터링</span></div>
+
+            <div class="body-card">
+              <div class="bc-h">
+                <div class="bc-t">신체 상태</div>
+                <div class="bc-badge" id="bcBadge">부상 없음</div>
+              </div>
+              <div class="bc-hint" id="bcHint">SeaBuddy 센서로 신체 지표를 모니터링 중</div>
+              <div class="body-stage" id="bodyStage">
+                <img src="assets/body-anatomy.png" alt="신체 상태">
+                <!-- injury points injected by JS -->
+              </div>
+            </div>
+
+            <div class="hm-grid">
+              <div class="hm" id="hmHr">
+                <div class="hk"><span class="ic">❤️</span> 심박수</div>
+                <div class="hv"><span id="hrVal2">78</span><small>bpm</small></div>
+                <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><path class="ln hr" d="M0,20 L14,20 L20,20 L26,8 L32,30 L38,20 L52,20 L58,20 L64,10 L70,28 L76,20 L92,20 L100,20 L106,9 L112,29 L118,20 L120,20"></path></svg>
+                <span class="tag good" id="hrTagEl">안정</span>
+              </div>
+              <div class="hm" id="hmSkin">
+                <div class="hk"><span class="ic">🌡️</span> 피부 온도</div>
+                <div class="hv"><span id="skinVal">32.6</span><small>°C</small></div>
+                <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><path class="ln" d="M0,24 C20,22 34,20 48,19 C66,17 82,16 100,15 C110,14 116,14 120,13"></path></svg>
+                <span class="tag good" id="skinTagEl">정상</span>
+              </div>
+              <div class="hm" id="hmStress">
+                <div class="hk"><span class="ic">🧠</span> 스트레스 <span style="opacity:.55">· HRV</span></div>
+                <div class="hv"><span id="stressVal" class="st">보통</span></div>
+                <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><rect class="bar" x="4" y="14" width="9" height="20" rx="2"></rect><rect class="bar hi" x="21" y="8" width="9" height="26" rx="2"></rect><rect class="bar" x="38" y="18" width="9" height="16" rx="2"></rect><rect class="bar hi" x="55" y="6" width="9" height="28" rx="2"></rect><rect class="bar" x="72" y="16" width="9" height="18" rx="2"></rect><rect class="bar" x="89" y="20" width="9" height="14" rx="2"></rect><rect class="bar hi" x="106" y="11" width="9" height="23" rx="2"></rect></svg>
+                <span class="tag good" id="stressTagEl">HRV 48ms</span>
+              </div>
+              <div class="hm" id="hmResp">
+                <div class="hk"><span class="ic">🫁</span> 호흡 횟수</div>
+                <div class="hv"><span id="respVal">13</span><small>회/분</small></div>
+                <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none"><path class="ln" d="M0,17 Q15,3 30,17 T60,17 T90,17 T120,17"></path></svg>
+                <span class="tag good" id="respTagEl">규칙적</span>
+              </div>
+              <div class="hm wide" id="hmBreath">
+                <div class="hk"><span class="ic">〰️</span> 호흡 패턴</div>
+                <div class="hv"><span id="breathVal" class="st">안정</span></div>
+                <svg class="spark" viewBox="0 0 200 34" preserveAspectRatio="none" style="height:40px"><path id="breathPath" class="ln" d="M0,17 Q10,3 20,17 T40,17 T60,17 T80,17 T100,17 T120,17 T140,17 T160,17 T180,17 T200,17"></path></svg>
+                <span class="tag good" id="breathTagEl">일정한 리듬</span>
+              </div>
+            </div>
+
+            <div class="ai-card">
+              <div class="ai-h"><span class="sp">AI</span> AI Safety Summary</div>
+              <div id="rpAi"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== HISTORY ===================== -->
+        <section class="view" id="view-history">
+          <div class="hs-wrap scroll">
+            <div class="head-h">다이빙 기록</div>
+            <div class="hs-loc"><span>📍</span> <span id="hsLoc">문섬 · 제주 서귀포</span></div>
+
+            <div class="cal">
+              <div class="cal-head">
+                <button class="cal-nav" id="calPrev">‹</button>
+                <div class="cal-month" id="calMonth">2025.07</div>
+                <button class="cal-nav" id="calNext">›</button>
+              </div>
+              <div class="cal-week" id="calWeek"></div>
+            </div>
+
+            <div class="log-div"></div>
+
+            <div id="hsDetail">
+              <div class="hs-safe" id="hsSafe"><span class="hi">🛡️</span> <span id="hsSafeTxt">안전 등급 A · 위험 구간 없이 완료</span></div>
+              <div class="hs-stats">
+                <div class="hs-stat"><div class="sv"><span id="stDist">420</span><small> m</small></div><div class="sl">이동 거리</div></div>
+                <div class="hs-stat"><div class="sv"><span id="stDepth">18</span><small> m</small></div><div class="sl">최대 수심</div></div>
+                <div class="hs-stat"><div class="sv"><span id="stTime">32</span><small> 분</small></div><div class="sl">다이빙 시간</div></div>
+              </div>
+            </div>
+
+            <div id="hsEmpty" class="hs-empty" style="display:none">
+              <div class="ei">🌊</div>
+              <div class="et">이 날은 다이빙 기록이 없어요</div>
+              <div class="es">달력에서 다이빙한 날(<span style="color:var(--accent)">●</span>)을 선택해 보세요</div>
+            </div>
+
+            <div class="log-div"></div>
+
+            <div class="cum-title">누적 통계</div>
+            <div class="cum">
+              <div class="cum-card"><span class="cic">🤿</span><div><div class="cv">37<small> 회</small></div><div class="cl">총 다이빙</div></div></div>
+              <div class="cum-card"><span class="cic">⏱️</span><div><div class="cv">21<small> 시간</small></div><div class="cl">누적 시간</div></div></div>
+              <div class="cum-card"><span class="cic">🧭</span><div><div class="cv">14.6<small> km</small></div><div class="cl">누적 거리</div></div></div>
+              <div class="cum-card"><span class="cic">🌊</span><div><div class="cv">24<small> m</small></div><div class="cl">최고 기록 수심</div></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===================== DEVICE ===================== -->
+        <section class="view" id="view-device">
+          <div class="dv">
+            <div class="dv-glow"></div>
+            <img class="dv-img" src="assets/product-cut.png" alt="Sea-Buddy device">
+            <div class="dv-top">
+              <div></div>
+              <div class="dv-online"><b></b> Dive</div>
+            </div>
+            <div class="dv-title">
+              <h2>Sea-Buddy</h2>
+              <p>Diver Safety Companion</p>
+            </div>
+            <div class="dv-specs">
+              <div class="dv-spec"><div class="k">펌웨어 업데이트</div><div class="v">v2.4.1 <small>최신</small></div></div>
+              <div class="dv-spec"><div class="k">센서 상태</div><div class="v">정상 <small>4/4</small></div></div>
+              <div class="dv-spec"><div class="k">배터리 상태</div><div class="v">86 % <small>양호</small></div></div>
+              <div class="dv-spec"><div class="k">캘리브레이션</div><div class="v warn">권장 <small>7일 전</small></div></div>
+            </div>
+            <a class="dv-more" href="#">자세히 보기</a>
+            <div class="dv-actions">
+              <button class="dv-diag"><span class="dot"></span> 진단하기</button>
+              <button class="dv-next">캘리브레이션</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- shared bottom tabs -->
+      <nav class="tabs" id="tabs">
+        <a class="on" data-view="monitor"><span class="ti">📊</span>Monitor</a>
+        <a data-view="connect"><span class="ti">📡</span>Connect</a>
+        <a data-view="report"><span class="ti">📋</span>Report</a>
+        <a data-view="history"><span class="ti">🗓️</span>History</a>
+        <a data-view="device"><span class="ti">🤿</span>Device</a>
+      </nav>
+    </div>
+
+    <!-- live camera overlay -->
+    <div class="livepage" id="livePage">
+      <video id="liveVid" src="assets/scuba-dive.mp4" poster="assets/ocean-bg.png" muted loop playsinline></video>
+      <div class="lp-grade"></div>
+      <div class="lp-in">
+        <div class="lp-top">
+          <div class="lp-rec" id="lpRec"><b></b> REC 00:12</div>
+          <div class="lp-depth">-14 m · 21°C</div>
+          <button class="lp-close" id="lpClose">✕</button>
+        </div>
+        <div class="lp-alert"><span class="d"></span> AI 인식 · 흰동가리 발견</div>
+        <div class="lp-sp"></div>
+        <div class="lp-controls">
+          <button class="lp-photo" title="사진"></button>
+          <button class="lp-rec-btn" id="lpRecBtn"><i></i></button>
+          <div class="lp-photo" style="visibility:hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // scale the fixed 390x844 design to fit the visible viewport without cropping
+    (function(){
+      const el=document.getElementById('phone');
+      function fit(){
+        const d=document.documentElement;
+        const w=d.clientWidth||window.innerWidth, h=d.clientHeight||window.innerHeight;
+        el.style.transform='scale('+Math.min(w/390, h/844, 1)+')';
+        el.classList.toggle('full', w<520);
+      }
+      fit();
+      window.addEventListener('resize',fit);
+      window.addEventListener('orientationchange',fit);
+      if(window.visualViewport){ window.visualViewport.addEventListener('resize',fit); }
+      window.addEventListener('load',fit);
+      requestAnimationFrame(fit);
+    })();
+
+    // rising bubbles (monitor)
+    const p=document.getElementById('particles');
+    [[30,80],[62,70],[78,85],[44,60],[68,72],[24,66],[82,78],[38,55],[56,64],[72,58],[16,74],[90,62]]
+      .forEach(([x,y])=>{ const s=document.createElement('i'); s.style.left=x+'%'; s.style.top=y+'%';
+        s.style.opacity=(.25+Math.random()*.4).toFixed(2); s.style.animationDuration=(3+Math.random()*4).toFixed(1)+'s';
+        s.style.animationDelay=(-Math.random()*5).toFixed(1)+'s'; p.appendChild(s); });
+
+    // ---- depth gauge ----
+    const R=104, C=2*Math.PI*R, arc=document.getElementById('depthArc');
+    arc.style.strokeDasharray=C;
+    function setDepth(m){ // 0..40m range
+      const frac=Math.min(m/40,1);
+      arc.style.strokeDashoffset=C*(1-frac);
+      // color by safety band
+      arc.style.stroke = m<20 ? 'var(--accent)' : m<30 ? 'var(--amber)' : 'var(--red)';
+    }
+    setDepth(14.2);
+
+    // ---- tab navigation ----
+    const phone=document.getElementById('phone');
+    const monitorVid=document.querySelector('#view-monitor video');
+    function showView(name){
+      document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.id==='view-'+name));
+      document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on', a.dataset.view===name));
+      phone.classList.toggle('light', name==='device'||name==='report');
+      if(name==='monitor'){ monitorVid.play().catch(()=>{}); } else { monitorVid.pause(); }
+    }
+    document.querySelectorAll('#tabs a').forEach(a=>a.addEventListener('click',()=>showView(a.dataset.view)));
+
+    // ---- live-updating vitals (monitor) ----
+    const hrEl=document.getElementById('hrVal'), o2El=document.getElementById('o2Val');
+    let base=78;
+    setInterval(()=>{ base=Math.max(70,Math.min(96, base+(Math.random()*6-3)|0)); hrEl.textContent=base; },1400);
+    setInterval(()=>{ o2El.textContent=90+(Math.random()*4|0); },3200);
+
+    // ---- dive timer ----
+    let secs=32*60+41;
+    const dt=document.getElementById('diveTimer');
+    const p2=n=>String(n).padStart(2,'0');
+    setInterval(()=>{ secs++; dt.textContent=p2(secs/3600|0)+':'+p2((secs%3600)/60|0)+':'+p2(secs%60); },1000);
+
+    // ---- live camera overlay ----
+    const liveBtn=document.getElementById('liveBtn'), livePage=document.getElementById('livePage'),
+          liveVid=document.getElementById('liveVid'), lpClose=document.getElementById('lpClose'),
+          lpRecBtn=document.getElementById('lpRecBtn'), lpRecEl=document.getElementById('lpRec'),
+          lpRecI=lpRecBtn.querySelector('i');
+    liveBtn.addEventListener('click',()=>{ livePage.classList.add('open'); liveVid.play().catch(()=>{}); });
+    lpClose.addEventListener('click',()=>{ livePage.classList.remove('open'); liveVid.pause(); });
+    let lpRec=true;
+    lpRecBtn.addEventListener('click',()=>{
+      lpRec=!lpRec;
+      lpRecI.style.borderRadius=lpRec?'8px':'50%'; lpRecI.style.width=lpRec?'28px':'24px'; lpRecI.style.height=lpRec?'28px':'24px';
+      lpRecEl.classList.toggle('paused',!lpRec);
+    });
+
+    // ---- connect toggles ----
+    const shareToggle=document.getElementById('shareToggle'), shareCard=document.getElementById('shareCard'), shareState=document.getElementById('shareState');
+    shareToggle.addEventListener('click',()=>{
+      const on=shareToggle.classList.toggle('on');
+      shareCard.classList.toggle('on',on);
+      shareState.textContent=on?'4명에게 실시간 공유 중':'공유 중지됨 · 나만 보기';
+    });
+    document.querySelectorAll('#shareItems .toggle').forEach(t=>t.addEventListener('click',()=>t.classList.toggle('on')));
+
+    // ---- history calendar ----
+    const WD=['일','월','화','수','목','금','토'];
+    const iso=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+    const diveData={
+      '2025-06-22':{ loc:'범섬 · 제주 서귀포', dist:280, depth:12, time:22, grade:'A', warn:false },
+      '2025-06-29':{ loc:'섶섬 · 제주 서귀포', dist:310, depth:15, time:26, grade:'B', warn:true },
+      '2025-07-01':{ loc:'문섬 · 제주 서귀포', dist:420, depth:18, time:32, grade:'A', warn:false },
+      '2025-07-08':{ loc:'문섬 · 제주 서귀포', dist:360, depth:16, time:29, grade:'A', warn:false }
+    };
+    const calWeek=document.getElementById('calWeek'), calMonth=document.getElementById('calMonth'),
+          hsLoc=document.getElementById('hsLoc'), hsDetail=document.getElementById('hsDetail'), hsEmpty=document.getElementById('hsEmpty'),
+          hsSafe=document.getElementById('hsSafe'), hsSafeTxt=document.getElementById('hsSafeTxt'),
+          stDist=document.getElementById('stDist'), stDepth=document.getElementById('stDepth'), stTime=document.getElementById('stTime');
+    let viewDate=new Date(2025,6,1), selectedISO='2025-07-01';
+    function updateHs(key){
+      const info=diveData[key];
+      if(!info){ hsDetail.style.display='none'; hsEmpty.style.display='block'; return; }
+      hsDetail.style.display='block'; hsEmpty.style.display='none';
+      hsLoc.textContent=info.loc; stDist.textContent=info.dist; stDepth.textContent=info.depth; stTime.textContent=info.time;
+      hsSafe.classList.toggle('warn', info.warn);
+      hsSafe.querySelector('.hi').textContent=info.warn?'⚠️':'🛡️';
+      hsSafeTxt.textContent=info.warn?('안전 등급 '+info.grade+' · 급상승 구간 1회 감지'):('안전 등급 '+info.grade+' · 위험 구간 없이 완료');
+    }
+    function renderWeek(){
+      const sun=new Date(viewDate); sun.setDate(viewDate.getDate()-viewDate.getDay());
+      const last=new Date(sun); last.setDate(sun.getDate()+6);
+      const fm=sun.getFullYear()+'.'+p2(sun.getMonth()+1);
+      calMonth.textContent=sun.getMonth()===last.getMonth()?fm:fm+' – '+p2(last.getMonth()+1);
+      calWeek.innerHTML='';
+      for(let i=0;i<7;i++){
+        const d=new Date(sun); d.setDate(sun.getDate()+i);
+        const key=iso(d), cell=document.createElement('div');
+        cell.className='cal-day'+(i===0?' sun':'')+(i===6?' sat':'')+(key===selectedISO?' on':'');
+        cell.innerHTML='<span class="wd">'+WD[i]+'</span><span class="dn">'+d.getDate()+'</span><span class="dot'+(diveData[key]?' dive':'')+'"></span>';
+        cell.addEventListener('click',()=>{ selectedISO=key; renderWeek(); updateHs(key); });
+        calWeek.appendChild(cell);
+      }
+    }
+    document.getElementById('calPrev').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()-7); renderWeek(); });
+    document.getElementById('calNext').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()+7); renderWeek(); });
+    renderWeek(); updateHs(selectedISO);
+
+    // ---- report: health dashboard (current vs final) ----
+    (function(){
+      const el=id=>document.getElementById(id);
+      const stage=el('bodyStage'), status=el('rpStatus');
+      const data={
+        live:{
+          sub:'실시간 건강 정보 · 다이빙 중', injury:false,
+          status:'신체 이상 없음 · 정상 모니터링', hint:'SeaBuddy 센서로 신체 지표를 모니터링 중',
+          hr:'78', hrTag:['안정','good'],
+          skin:'32.6', skinTag:['정상','good'],
+          stress:'보통', stressTag:['HRV 48ms','good'],
+          resp:'13', respTag:['규칙적','good'],
+          breath:'안정', breathTag:['일정한 리듬','good'],
+          breathPath:'M0,17 Q10,3 20,17 T40,17 T60,17 T80,17 T100,17 T120,17 T140,17 T160,17 T180,17 T200,17',
+          alert:{ stress:false, resp:false, breath:false },
+          injuries:[],
+          ai:[['ok','실시간 지표가 모두 안전 범위 안에 있어요. 심박·호흡이 안정적입니다.']]
+        },
+        final:{
+          sub:'마지막 건강 정보 · 다이빙 종료 11:32', injury:true,
+          status:'부상 2곳 감지 · 상승 중 심박 급증', hint:'빨간 지점을 눌러 부상 부위를 확인하세요',
+          hr:'82', hrTag:['최고 128','warn'],
+          skin:'31.8', skinTag:['다소 낮음','warn'],
+          stress:'높음', stressTag:['HRV 29ms','bad'],
+          resp:'16', respTag:['빨라짐','warn'],
+          breath:'불안정', breathTag:['급상승 구간 흐트러짐','warn'],
+          breathPath:'M0,17 Q8,6 16,17 T32,17 Q40,2 48,17 T64,17 Q70,-3 78,21 Q86,1 94,17 T112,17 T134,17 T156,17 T178,17 T200,17',
+          alert:{ stress:true, resp:false, breath:true },
+          injuries:[
+            {x:31,y:24,part:'오른 어깨',sev:'통증 · 중',side:'left'},
+            {x:60,y:73,part:'왼 무릎',sev:'타박 · 경',side:'right'}
+          ],
+          ai:[['bad','<b>오른 어깨 통증</b> 감지 — 상승 중 접촉으로 추정돼요. 구조 시 우선 확인 부위입니다.'],
+              ['warn','14~15분 <b>급상승</b>으로 심박 128·HRV 급감. 스트레스 지표가 높습니다.'],
+              ['ok','호흡은 종료 시점에 정상 리듬으로 회복됐어요.']]
+        }
+      };
+      function setTag(id,t){ const e=el(id); e.textContent=t[0]; e.className='tag '+t[1]; }
+      function render(state){
+        const d=data[state];
+        el('bcHint').textContent=d.hint;
+        status.classList.toggle('injury', d.injury);
+        status.querySelector('.si').textContent=d.injury?'🩹':'🛡️';
+        el('rpStatusTxt').textContent=d.status;
+        el('bcBadge').textContent=d.injury?('부상 '+d.injuries.length+'곳'):'부상 없음';
+        el('bcBadge').classList.toggle('injury', d.injury);
+        el('hrVal2').textContent=d.hr; setTag('hrTagEl',d.hrTag);
+        el('skinVal').textContent=d.skin; setTag('skinTagEl',d.skinTag);
+        el('stressVal').textContent=d.stress; setTag('stressTagEl',d.stressTag);
+        el('respVal').textContent=d.resp; setTag('respTagEl',d.respTag);
+        el('breathVal').textContent=d.breath; setTag('breathTagEl',d.breathTag);
+        el('breathPath').setAttribute('d',d.breathPath);
+        el('hmStress').classList.toggle('alert',d.alert.stress);
+        el('hmResp').classList.toggle('alert',d.alert.resp);
+        el('hmBreath').classList.toggle('alert',d.alert.breath);
+        stage.querySelectorAll('.injury-pt').forEach(n=>n.remove());
+        d.injuries.forEach(inj=>{
+          const pt=document.createElement('div'); pt.className='injury-pt'; pt.style.left=inj.x+'%'; pt.style.top=inj.y+'%';
+          const ps=inj.side==='left'?'right:26px;top:50%;transform:translateY(-50%)':'left:26px;top:50%;transform:translateY(-50%)';
+          pt.innerHTML='<div class="dot"></div><div class="pill" style="'+ps+'"><div class="pk">'+inj.part+'</div><div class="pv">'+inj.sev+'</div></div>';
+          stage.appendChild(pt);
+        });
+        el('rpAi').innerHTML=d.ai.map(a=>'<div class="ai-line '+a[0]+'"><span class="dot"></span><span>'+a[1]+'</span></div>').join('');
+      }
+      render('final');
+    })();
+  </script>
+</body>
+</html>

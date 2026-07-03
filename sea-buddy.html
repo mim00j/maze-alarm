@@ -352,9 +352,9 @@
     (function(){
       const el=document.getElementById('phone');
       function fit(){
-        const vv=window.visualViewport;
-        const w=(vv&&vv.width)||window.innerWidth||document.documentElement.clientWidth;
-        const h=(vv&&vv.height)||window.innerHeight||document.documentElement.clientHeight;
+        const d=document.documentElement;
+        const w=d.clientWidth||window.innerWidth;
+        const h=d.clientHeight||window.innerHeight;
         const s=Math.min(w/390, h/844, 1);
         el.style.transform='scale('+s+')';
         el.classList.toggle('full', w<520);

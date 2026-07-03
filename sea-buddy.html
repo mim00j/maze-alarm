@@ -93,6 +93,7 @@
   .lv-rec{ display:flex; align-items:center; gap:7px; font-size:13px; font-weight:800; letter-spacing:.5px; background:rgba(0,0,0,.4); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
   .lv-rec b{ width:9px; height:9px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 10px #ff4d4d; animation:blink 1.2s infinite; }
   @keyframes blink{ 50%{ opacity:.3; } }
+  .lv-rec.paused b{ animation:none; opacity:.35; box-shadow:none; }
   .lv-depth{ margin-left:auto; font-size:13px; font-weight:700; background:rgba(0,0,0,.4); padding:6px 12px; border-radius:14px; backdrop-filter:blur(8px); }
   .lv-alert{ align-self:center; margin-top:10px; display:flex; align-items:center; gap:9px; font-size:13px; font-weight:600; background:rgba(3,26,40,.55); border:1px solid rgba(255,255,255,.22); padding:9px 16px; border-radius:16px; backdrop-filter:blur(10px); box-shadow:0 6px 18px rgba(0,0,0,.3); }
   .lv-alert .d{ width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); }
@@ -272,7 +273,7 @@
           <div class="lv-grade"></div>
           <div class="lv">
             <div class="lv-top">
-              <div class="lv-rec"><b></b> REC 00:12</div>
+              <div class="lv-rec" id="lvRec"><b></b> REC <span id="recTime">00:12</span></div>
               <div class="lv-depth">-14 m · 21°C</div>
             </div>
             <div class="lv-alert"><span class="d"></span> AI 인식 · 흰동가리 발견</div>
@@ -434,6 +435,7 @@
       document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on', a.dataset.view===name));
       phone.classList.toggle('light', name==='device');
       if(name==='live'){ liveVideo.play().catch(()=>{}); } else { liveVideo.pause(); }
+      if(typeof syncRec==='function') syncRec();
     }
     document.querySelectorAll('#tabs a').forEach(a=>a.addEventListener('click',()=>showView(a.dataset.view)));
 
@@ -495,10 +497,25 @@
     renderWeek();
     updateLog(selectedISO);
 
-    // ---- live record toggle ----
+    // ---- live record toggle + timer ----
     const recBtn=document.getElementById('recBtn'), recIcon=recBtn.querySelector('i');
-    let recording=true;
-    recBtn.addEventListener('click',()=>{ recording=!recording; recIcon.style.borderRadius=recording?'8px':'50%'; recIcon.style.width=recording?'30px':'26px'; recIcon.style.height=recording?'30px':'26px'; });
+    const recTime=document.getElementById('recTime'), lvRec=document.getElementById('lvRec');
+    let recording=true, recSeconds=12, recInterval=null;
+    const fmtRec=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    function syncRec(){
+      lvRec.classList.toggle('paused', !recording);
+      const onLive=document.getElementById('view-live').classList.contains('on');
+      if(recording && onLive){
+        if(!recInterval) recInterval=setInterval(()=>{ recSeconds++; recTime.textContent=fmtRec(recSeconds); },1000);
+      } else {
+        clearInterval(recInterval); recInterval=null;
+      }
+    }
+    recBtn.addEventListener('click',()=>{
+      recording=!recording;
+      recIcon.style.borderRadius=recording?'8px':'50%'; recIcon.style.width=recording?'30px':'26px'; recIcon.style.height=recording?'30px':'26px';
+      syncRec();
+    });
     const fb=document.getElementById('followBtn'), rb=document.getElementById('returnBtn');
     fb.addEventListener('click',()=>{ fb.classList.add('on'); rb.classList.remove('on'); });
     rb.addEventListener('click',()=>{ rb.classList.add('on'); fb.classList.remove('on'); });

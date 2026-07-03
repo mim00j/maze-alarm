@@ -437,30 +437,13 @@
     }
     document.querySelectorAll('#tabs a').forEach(a=>a.addEventListener('click',()=>showView(a.dataset.view)));
 
-    // ---- dive log calendar strip ----
-    const calDays=[
-      {d:28, wd:'토', cls:'sat'},
-      {d:29, wd:'일', cls:'sun', dive:true},
-      {d:30, wd:'월'},
-      {d:1,  wd:'화', dive:true, sel:true},
-      {d:2,  wd:'수'},
-      {d:3,  wd:'목'},
-      {d:4,  wd:'금'}
-    ];
-    const calWeek=document.getElementById('calWeek');
-    calDays.forEach(o=>{
-      const el=document.createElement('div');
-      el.className='cal-day'+(o.cls?' '+o.cls:'')+(o.sel?' on':'');
-      el.innerHTML='<span class="wd">'+o.wd+'</span><span class="dn">'+o.d+'</span><span class="dot'+(o.dive?' dive':'')+'"></span>';
-      el.addEventListener('click',()=>{ calWeek.querySelectorAll('.cal-day').forEach(x=>x.classList.remove('on')); el.classList.add('on'); updateLog(o.d); });
-      calWeek.appendChild(el);
-    });
-
-    // ---- dive log: per-day data + render ----
+    // ---- dive log data (keyed by YYYY-MM-DD) ----
     const durs=['0:42','1:15','0:58','2:03','1:37','0:24','1:52','0:33'];
     const diveData={
-      29:{ loc:'섶섬 · 제주 서귀포', dist:310, depth:15, time:26, photos:19, videos:6 },
-      1 :{ loc:'문섬 · 제주 서귀포', dist:420, depth:18, time:32, photos:28, videos:9 }
+      '2025-06-22':{ loc:'범섬 · 제주 서귀포', dist:280, depth:12, time:22, photos:14, videos:4 },
+      '2025-06-29':{ loc:'섶섬 · 제주 서귀포', dist:310, depth:15, time:26, photos:19, videos:6 },
+      '2025-07-01':{ loc:'문섬 · 제주 서귀포', dist:420, depth:18, time:32, photos:28, videos:9 },
+      '2025-07-08':{ loc:'문섬 · 제주 서귀포', dist:360, depth:16, time:29, photos:22, videos:7 }
     };
     const logLoc=document.getElementById('logLoc'), logDetail=document.getElementById('logDetail'), logEmpty=document.getElementById('logEmpty'),
           statDist=document.getElementById('statDist'), statDepth=document.getElementById('statDepth'), statTime=document.getElementById('statTime'),
@@ -474,8 +457,8 @@
         row.appendChild(d);
       }
     }
-    function updateLog(day){
-      const info=diveData[day];
+    function updateLog(key){
+      const info=diveData[key];
       if(!info){ logDetail.style.display='none'; logEmpty.style.display='block'; return; }
       logDetail.style.display='block'; logEmpty.style.display='none';
       logLoc.textContent=info.loc;
@@ -483,7 +466,34 @@
       photoCount.textContent=info.photos+'장 전체보기'; videoCount.textContent=info.videos+'개 전체보기';
       fillRow(photoRow,info.photos,false); fillRow(videoRow,info.videos,true);
     }
-    updateLog(1);
+
+    // ---- dive log calendar strip (week navigation) ----
+    const WD=['일','월','화','수','목','금','토'];
+    const pad2=n=>String(n).padStart(2,'0');
+    const iso=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+    const calWeek=document.getElementById('calWeek'), calMonth=document.getElementById('calMonth');
+    let viewDate=new Date(2025,6,1);   // any day within the displayed week
+    let selectedISO='2025-07-01';      // persists across weeks
+    function renderWeek(){
+      const sun=new Date(viewDate); sun.setDate(viewDate.getDate()-viewDate.getDay());
+      const last=new Date(sun); last.setDate(sun.getDate()+6);
+      const fm=sun.getFullYear()+'.'+pad2(sun.getMonth()+1);
+      calMonth.textContent = sun.getMonth()===last.getMonth() ? fm : fm+' – '+pad2(last.getMonth()+1);
+      calWeek.innerHTML='';
+      for(let i=0;i<7;i++){
+        const d=new Date(sun); d.setDate(sun.getDate()+i);
+        const key=iso(d);
+        const cell=document.createElement('div');
+        cell.className='cal-day'+(i===0?' sun':'')+(i===6?' sat':'')+(key===selectedISO?' on':'');
+        cell.innerHTML='<span class="wd">'+WD[i]+'</span><span class="dn">'+d.getDate()+'</span><span class="dot'+(diveData[key]?' dive':'')+'"></span>';
+        cell.addEventListener('click',()=>{ selectedISO=key; renderWeek(); updateLog(key); });
+        calWeek.appendChild(cell);
+      }
+    }
+    document.getElementById('calPrev').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()-7); renderWeek(); });
+    document.getElementById('calNext').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()+7); renderWeek(); });
+    renderWeek();
+    updateLog(selectedISO);
 
     // ---- live record toggle ----
     const recBtn=document.getElementById('recBtn'), recIcon=recBtn.querySelector('i');

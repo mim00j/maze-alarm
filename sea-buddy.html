@@ -514,6 +514,7 @@
     recBtn.addEventListener('click',()=>{
       recording=!recording;
       recIcon.style.borderRadius=recording?'8px':'50%'; recIcon.style.width=recording?'30px':'26px'; recIcon.style.height=recording?'30px':'26px';
+      if(!recording){ recSeconds=0; recTime.textContent=fmtRec(0); }  // 정지 시 초기화
       syncRec();
     });
     const fb=document.getElementById('followBtn'), rb=document.getElementById('returnBtn');

@@ -103,7 +103,7 @@
   <!-- 홈 -->
   <main class="home" id="home">
     <div class="top">
-      <h1>미로 알람 <span class="ver">v3</span></h1>
+      <h1>미로 알람 <span class="ver">v4</span></h1>
       <div class="clock"><div class="t" id="clockT">--:--</div><div class="d" id="clockD"></div></div>
     </div>
 
@@ -118,6 +118,7 @@
 
     <section class="card">
       <p class="card-title">요일별 알람</p>
+      <p class="note" id="nextAlarm"></p>
       <div id="alarmList"></div>
     </section>
 
@@ -309,7 +310,10 @@
       time.addEventListener("change",sync);
       bar.querySelector(".btn-confirm").addEventListener("click",()=>{a.time=time.value||a.time;time.value=a.time;lastFired=null;save();bar.hidden=true;Sound.ensure();});
       bar.querySelector(".btn-cancel").addEventListener("click",()=>{time.value=a.time;bar.hidden=true;});
-      tog.addEventListener("change",e=>{a.on=e.target.checked;row.className="alarm-row "+(a.on?"on":"off");lastFired=null;save();Sound.ensure();
+      tog.addEventListener("change",e=>{a.on=e.target.checked;row.className="alarm-row "+(a.on?"on":"off");
+        /* 시간을 바꿔놓고 확인을 안 누른 채 스위치를 켜면 바꾼 시간을 그대로 적용 */
+        if(a.on&&!bar.hidden){a.time=time.value||a.time;time.value=a.time;bar.hidden=true;}
+        lastFired=null;save();Sound.ensure();
         if(a.on&&"Notification"in window&&Notification.permission==="default")Notification.requestPermission();
         updateWakeLock();});
       item.appendChild(row);item.appendChild(bar);wrap.appendChild(item);
@@ -331,11 +335,34 @@
     }
     lastCheck=nowMs;
   }
+  /* 다음에 울릴 알람 계산 */
+  function nextAlarm(now){
+    let best=null;
+    for(let i=0;i<=7;i++){
+      const day=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+      const k=JS2KEY[day.getDay()],a=S.alarms[k];
+      if(!a||!a.on)continue;
+      const[h,m]=a.time.split(":").map(Number);
+      const t=new Date(day.getFullYear(),day.getMonth(),day.getDate(),h,m,0,0);
+      if(t<=now)continue;
+      if(!best||t<best.t)best={t,label:DAYS.find(d=>d.k===k).l,time:a.time};
+    }
+    return best;
+  }
+  function renderNext(now){
+    const el=$("nextAlarm"),b=nextAlarm(now);
+    if(!b){el.textContent="켜진 알람이 없어요";el.style.color="var(--muted)";return;}
+    el.style.color="";
+    const diff=b.t-now,d=Math.floor(diff/86400000),h=Math.floor(diff%86400000/3600000),m=Math.floor(diff%3600000/60000);
+    const left=diff<60000?"곧 울려요":(d?`${d}일 `:"")+(h?`${h}시간 `:"")+`${m}분 후`;
+    el.textContent=`다음 알람: ${b.label} ${b.time} · ${left}`;
+  }
   function tick(){
     const now=new Date();
     const hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0");
     $("clockT").textContent=`${hh}:${mm}`;
     $("clockD").textContent=new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long"}).format(now);
+    renderNext(now);
     checkAlarms(now.getTime());
   }
 

@@ -295,16 +295,26 @@
   }
 
   /* 시계 + 알람 체크 */
+  let lastCheck=Date.now();
+  function checkAlarms(nowMs){
+    if(ringing){lastCheck=nowMs;return;}
+    /* 마지막 체크 이후 지나간 분을 모두 검사 — 백그라운드 스로틀로 놓친 알람도 최대 5분 소급 발동 */
+    const start=Math.max(lastCheck,nowMs-5*60000);
+    for(let t=Math.floor(start/60000)*60000;t<=nowMs;t+=60000){
+      const d=new Date(t);
+      const a=S.alarms[JS2KEY[d.getDay()]];
+      const cur=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+      const key=d.toDateString()+cur;
+      if(a&&a.on&&a.time===cur&&lastFired!==key){lastFired=key;lastCheck=nowMs;fire(false);return;}
+    }
+    lastCheck=nowMs;
+  }
   function tick(){
     const now=new Date();
     const hh=String(now.getHours()).padStart(2,"0"),mm=String(now.getMinutes()).padStart(2,"0");
     $("clockT").textContent=`${hh}:${mm}`;
     $("clockD").textContent=new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long"}).format(now);
-    if(!ringing){
-      const a=S.alarms[JS2KEY[now.getDay()]];
-      const cur=`${hh}:${mm}`,key=now.toDateString()+cur;
-      if(a&&a.on&&a.time===cur&&now.getSeconds()===0&&lastFired!==key){lastFired=key;fire(false);}
-    }
+    checkAlarms(now.getTime());
   }
 
   /* ---------- 발동 / 타이머 ---------- */
@@ -316,7 +326,9 @@
     const ap=h<12?"오전":"오후",h12=(h%12)||12;
     $("gameWhen").textContent=`${wd} ${ap} ${h12}:${m}`;
     $("game").hidden=false;$("solved").hidden=true;
-    requestAnimationFrame(()=>{Maze.build(SIZES[S.difficulty]||7);Sound.start();});
+    /* rAF는 백그라운드 탭에서 실행되지 않으므로 동기 호출 — 소리가 즉시 나야 함 */
+    Sound.start();
+    Maze.build(SIZES[S.difficulty]||7);
   }
 
   Maze.onSolve=function(){
@@ -332,6 +344,7 @@
   $("difficulty").addEventListener("change",e=>{if(e.target.name==="diff"){S.difficulty=e.target.value;save();}Sound.ensure();});
   $("testNow").addEventListener("click",()=>{Sound.ensure();fire(true);});
   document.addEventListener("pointerdown",()=>Sound.ensure(),{once:true});
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden){tick();if(!$("game").hidden)Maze.layout(false);}});
 
   /* ---------- 시작 ---------- */
   renderHome();tick();setInterval(tick,1000);
